@@ -1,53 +1,48 @@
 import os
 import arcade
-import json
 
-# Constants
-SCREEN_WIDTH = 1000
-SCREEN_HEIGHT = 650
+# Constants for window
+SCREEN_WIDTH = 1152
+SCREEN_HEIGHT = 576
 SCREEN_TITLE = "Platformer"
 
 # Constants used to scale our sprites from their original size
 TILE_SCALING = 0.5
 CHARACTER_SCALING = TILE_SCALING * 2
-COIN_SCALING = TILE_SCALING
 SPRITE_PIXEL_SIZE = 128
-GRID_PIXEL_SIZE = SPRITE_PIXEL_SIZE * TILE_SCALING
+TILE_PIXEL_SIZE = SPRITE_PIXEL_SIZE * TILE_SCALING
 
 # Movement speed of player, in pixels per frame
-PLAYER_MOVEMENT_SPEED = 7
+PLAYER_MOVEMENT_SPEED = 10
 GRAVITY = 1.5
-PLAYER_JUMP_SPEED = 30
+PLAYER_JUMP_SPEED = 25
 
 # Player start position coordinates
-PLAYER_START_X = SPRITE_PIXEL_SIZE * TILE_SCALING * 2
-PLAYER_START_Y = SPRITE_PIXEL_SIZE * TILE_SCALING * 1
+PLAYER_START_X = SPRITE_PIXEL_SIZE * TILE_SCALING * 3
+PLAYER_START_Y = SPRITE_PIXEL_SIZE * TILE_SCALING * 5
 
 # Constants used to track if the player is facing left or right
 RIGHT_FACING = 0
 LEFT_FACING = 1
 
 # Constants for map layer names
-LAYER_NAME_PLAYER = "Player"
-LAYER_NAME_MOVING_PLATFORMS = "Moving Platforms"
-LAYER_NAME_PLATFORMS = "Platforms"
+LAYER_NAME_GOAL = "Goal"
 LAYER_NAME_FOREGROUND = "Foreground"
+# LAYER_NAME_MOVING_PLATFORMS = "Moving Platforms"
+LAYER_NAME_PLATFORMS = "Platforms"
+LAYER_NAME_PLAYER = "Player"
 LAYER_NAME_BACKGROUND = "Background"
-LAYER_NAME_DONT_TOUCH = "Don't Touch"
+LAYER_NAME_DEATHGROUND = "Deathground"
 
 
 def load_texture_pair(filename):
-    """
-    Load a texture pair, with the second being a mirror image.
-    """
     return [
         arcade.load_texture(filename),
         arcade.load_texture(filename, flipped_horizontally=True),
     ]
 
 
-class PlayerCharacter(arcade.Sprite):
-    """Player Sprite"""
+class Player(arcade.Sprite):
 
     def __init__(self):
         # Set up parent class
@@ -62,10 +57,9 @@ class PlayerCharacter(arcade.Sprite):
 
         # Track our state
         self.jumping = False
+        # self.dashing = False
 
-        # --- Load Textures ---
-
-        # Images from Kenney.nl's Asset Pack 3
+        # Texture path
         player_path = ":resources:images/animated_characters/robot/robot"
 
         # Load textures for idle standing
@@ -82,9 +76,7 @@ class PlayerCharacter(arcade.Sprite):
         # Set the initial texture
         self.texture = self.idle_texture_pair[0]
 
-        # Hit box will be set based on the first image used. If you want to specify
-        # a different hit box, you can do it like the code below.
-        # set_hit_box = [[-22, -64], [22, -64], [22, 28], [-22, 28]]
+        # Set the hit box
         self.hit_box = self.texture.hit_box_points
 
     def update_animation(self, delta_time: float = 1 / 60):
@@ -116,16 +108,9 @@ class PlayerCharacter(arcade.Sprite):
         ]
 
 
-class MyGame(arcade.Window):
-    """
-    Main application class.
-    """
+class Game(arcade.Window):
 
     def __init__(self):
-        """
-        Initializer for the game
-        """
-
         # Call the parent class and set up the window
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
 
@@ -139,6 +124,7 @@ class MyGame(arcade.Window):
         self.up_pressed = False
         self.down_pressed = False
         self.jump_needs_reset = False
+        self.dash_needs_reset = False
 
         # Our TileMap Object
         self.tile_map = None
@@ -146,8 +132,8 @@ class MyGame(arcade.Window):
         # Our Scene Object
         self.scene = None
 
-        # Separate variable that holds the player sprite
-        self.player_sprite = None
+        # Separate variable that holds the player
+        self.player = None
 
         # Our 'physics' engine
         self.physics_engine = None
@@ -155,37 +141,28 @@ class MyGame(arcade.Window):
         # A Camera that can be used for scrolling the screen
         self.camera = None
 
-        # How far this game has scrolled left/right
-        self.end_of_map = 0
-
-        # Level
-        self.level = 1
+        # End of map x/y values
+        self.map_x_bound = 0
+        self.map_y_bound = 0
 
 
     def setup(self):
-        """Set up the game here. Call this function to restart the game."""
-
         # Set up the Cameras
         self.camera = arcade.Camera(self.width, self.height)
 
         # Map name
-        map_name = f":resources:tiled_maps/map2_level_{self.level}.json"
-
-        # Intercept and save the map JSON to a local file
-        with arcade.open_file(map_name) as f:
-            map_json_data = json.load(f)
-            with open("map.json", "w") as local_file:
-                json.dump(map_json_data, local_file, indent=2)
+        # map_name = f":resources:tiled_maps/map2_level_1.json"
+        map_name = "./test_map.json"
 
         # Layer Specific Options for the Tilemap
         layer_options = {
             LAYER_NAME_PLATFORMS: {
                 "use_spatial_hash": True,
             },
-            LAYER_NAME_MOVING_PLATFORMS: {
-                "use_spatial_hash": False,
-            },
-            LAYER_NAME_DONT_TOUCH: {
+            # LAYER_NAME_MOVING_PLATFORMS: {
+            #     "use_spatial_hash": False,
+            # },
+            LAYER_NAME_DEATHGROUND: {
                 "use_spatial_hash": True,
             },
         }
@@ -205,31 +182,29 @@ class MyGame(arcade.Window):
         self.scene.add_sprite_list_after(LAYER_NAME_PLAYER, LAYER_NAME_FOREGROUND)
 
         # Set up the player, specifically placing it at these coordinates.
-        self.player_sprite = PlayerCharacter()
-        self.player_sprite.center_x = PLAYER_START_X
-        self.player_sprite.center_y = PLAYER_START_Y
-        self.scene.add_sprite(LAYER_NAME_PLAYER, self.player_sprite)
+        self.player = Player()
+        self.player.center_x = PLAYER_START_X
+        self.player.center_y = PLAYER_START_Y
+        self.scene.add_sprite(LAYER_NAME_PLAYER, self.player)
 
-        # Calculate the right edge of the my_map in pixels
-        self.end_of_map = self.tile_map.height * GRID_PIXEL_SIZE
+        # Edges of map
+        self.map_x_bound = self.tile_map.width * TILE_PIXEL_SIZE
+        self.map_y_bound = self.tile_map.height * TILE_PIXEL_SIZE
 
-        # --- Other stuff
         # Set the background color
         if self.tile_map.background_color:
             arcade.set_background_color(self.tile_map.background_color)
 
         # Create the 'physics engine'
         self.physics_engine = arcade.PhysicsEnginePlatformer(
-            self.player_sprite,
-            platforms=self.scene[LAYER_NAME_MOVING_PLATFORMS],
+            self.player,
+            # platforms=self.scene[LAYER_NAME_MOVING_PLATFORMS],
             gravity_constant=GRAVITY,
             walls=self.scene[LAYER_NAME_PLATFORMS]
         )
 
 
     def on_draw(self):
-        """Render the screen."""
-
         # Clear the screen to the background color
         self.clear()
 
@@ -240,28 +215,25 @@ class MyGame(arcade.Window):
         self.scene.draw()
 
 
-    def process_keychange(self):
-        """
-        Called when we change a key up/down or we move on/off a ladder.
-        """
+    def on_keychange(self):
         # Process up/down
         if self.up_pressed and not self.down_pressed:
             if (
                 self.physics_engine.can_jump(y_distance=10)
                 and not self.jump_needs_reset
             ):
-                self.player_sprite.change_y = PLAYER_JUMP_SPEED
+                self.player.change_y = PLAYER_JUMP_SPEED
                 self.jump_needs_reset = True
         elif self.down_pressed and not self.up_pressed:
-            self.player_sprite.change_y = -PLAYER_MOVEMENT_SPEED
+            self.player.change_y = -PLAYER_MOVEMENT_SPEED * 1.5
 
         # Process left/right
         if self.right_pressed and not self.left_pressed:
-            self.player_sprite.change_x = PLAYER_MOVEMENT_SPEED
+            self.player.change_x = PLAYER_MOVEMENT_SPEED
         elif self.left_pressed and not self.right_pressed:
-            self.player_sprite.change_x = -PLAYER_MOVEMENT_SPEED
+            self.player.change_x = -PLAYER_MOVEMENT_SPEED
         else:
-            self.player_sprite.change_x = 0
+            self.player.change_x = 0
 
 
     def on_key_press(self, key, modifiers):
@@ -276,7 +248,7 @@ class MyGame(arcade.Window):
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.right_pressed = True
 
-        self.process_keychange()
+        self.on_keychange()
 
 
     def on_key_release(self, key, modifiers):
@@ -292,12 +264,13 @@ class MyGame(arcade.Window):
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.right_pressed = False
 
-        self.process_keychange()
+        self.on_keychange()
 
     
     def center_camera_to_player(self):
-        screen_center_x = self.player_sprite.center_x - (self.camera.viewport_width / 2)
-        screen_center_y = self.player_sprite.center_y - (
+        # screen_center_x = self.player.center_x - (self.camera.viewport_width / 2)
+        screen_center_x = 0
+        screen_center_y = self.player.center_y - (
             self.camera.viewport_height / 2
         )
 
@@ -312,16 +285,14 @@ class MyGame(arcade.Window):
 
 
     def on_update(self, delta_time):
-        """Movement and game logic"""
-
         # Move the player with the physics engine
         self.physics_engine.update()
 
         # Update animations
         if self.physics_engine.can_jump():
-            self.player_sprite.can_jump = False
+            self.player.can_jump = False
         else:
-            self.player_sprite.can_jump = True
+            self.player.can_jump = True
 
         # Update Animations
         self.scene.update_animation(
@@ -329,37 +300,42 @@ class MyGame(arcade.Window):
         )
 
         # Did the player fall off the map?
-        if self.player_sprite.center_y < -100:
-            self.player_sprite.center_x = PLAYER_START_X
-            self.player_sprite.center_y = PLAYER_START_Y
+        if self.player.center_y < -100:
+            self.player.center_x = PLAYER_START_X
+            self.player.center_y = PLAYER_START_Y
 
         # Did the player touch something they should not?
         if arcade.check_for_collision_with_list(
-            self.player_sprite, self.scene[LAYER_NAME_DONT_TOUCH]
+            self.player, self.scene[LAYER_NAME_DEATHGROUND]
         ):
-            self.player_sprite.change_x = 0
-            self.player_sprite.change_y = 0
-            self.player_sprite.center_x = PLAYER_START_X
-            self.player_sprite.center_y = PLAYER_START_Y
+            self.player.change_x = 0
+            self.player.change_y = 0
+            self.player.center_x = PLAYER_START_X
+            self.player.center_y = PLAYER_START_Y
 
-        # See if the user got to the end of the level
-        if self.player_sprite.center_y >= self.end_of_map:
-            # Advance to the next level
-            self.level += 1
-
-            # Load the next level
-            self.setup()
+        # Warp around the bounds
+        left_map_limit = -self.player.width + TILE_PIXEL_SIZE
+        right_map_limit = self.map_x_bound + self.player.width - TILE_PIXEL_SIZE
+        if self.player.center_x > right_map_limit:
+            self.player.center_x = left_map_limit
+        if self.player.center_x < left_map_limit:
+            self.player.center_x = right_map_limit
+        
+        # See if the user got to the goal
+        if arcade.check_for_collision_with_list(
+            self.player, self.scene[LAYER_NAME_GOAL]
+        ):
+            arcade.close_window()
 
         # Update walls, used with moving platforms
-        self.scene.update([LAYER_NAME_MOVING_PLATFORMS])
+        # self.scene.update([LAYER_NAME_MOVING_PLATFORMS])
 
         # Position the camera
         self.center_camera_to_player()
 
 
 def main():
-    """Main function"""
-    window = MyGame()
+    window = Game()
     window.setup()
     arcade.run()
 
