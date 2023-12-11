@@ -1,4 +1,31 @@
 {
+    "activeFile": "test_map.tmx",
+    "expandedProjectPaths": [
+        "."
+    ],
+    "fileStates": {
+        "test_map.tmx": {
+            "scale": 0.33,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 1154.5454545454545,
+                "y": 5165.151515151515
+            }
+        },
+        "test_map_tiles.tsx": {
+            "scaleInDock": 0.25,
+            "scaleInEditor": 1
+        }
+    },
     "last.exportedFilePath": "C:/Users/leosa/Documents/TRAVAIL/ESGI/IAJEU/platformer",
-    "map.lastUsedExportFilter": "Tous les Fichiers (*)"
+    "map.lastUsedExportFilter": "Tous les Fichiers (*)",
+    "openFiles": [
+        "test_map.tmx",
+        "test_map_tiles.tsx"
+    ],
+    "project": "test_map.tiled-project",
+    "recentFiles": [
+        "test_map_tiles.tsx",
+        "test_map.tmx"
+    ]
 }

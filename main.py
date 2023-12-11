@@ -1,31 +1,36 @@
 import os
+import math
 import arcade
 
-# Constants for window
+#region CONSTANTS
+# Game window
 SCREEN_WIDTH = 1152
 SCREEN_HEIGHT = 576
-SCREEN_TITLE = "Platformer"
+SCREEN_TITLE = "MechAI Parkour"
 
-# Constants used to scale our sprites from their original size
+# Entity scaling
 TILE_SCALING = 0.5
 CHARACTER_SCALING = TILE_SCALING * 2
 SPRITE_PIXEL_SIZE = 128
 TILE_PIXEL_SIZE = SPRITE_PIXEL_SIZE * TILE_SCALING
 
-# Movement speed of player, in pixels per frame
+# Physics engine
 PLAYER_MOVEMENT_SPEED = 10
 GRAVITY = 1.5
 PLAYER_JUMP_SPEED = 25
+PLAYER_DASH_SPEED = 25
+PLAYER_DASH_DURATION = 0.1
+PLAYER_DASH_COOLDOWN = 1.5
 
-# Player start position coordinates
+# Player start position tile coordinates
 PLAYER_START_X = SPRITE_PIXEL_SIZE * TILE_SCALING * 3
 PLAYER_START_Y = SPRITE_PIXEL_SIZE * TILE_SCALING * 5
 
-# Constants used to track if the player is facing left or right
-RIGHT_FACING = 0
-LEFT_FACING = 1
+# Player sprite facing direction
+PLAYER_RIGHT_FACING = 0
+PLAYER_LEFT_FACING = 1
 
-# Constants for map layer names
+# Map layers
 LAYER_NAME_GOAL = "Goal"
 LAYER_NAME_FOREGROUND = "Foreground"
 # LAYER_NAME_MOVING_PLATFORMS = "Moving Platforms"
@@ -33,33 +38,33 @@ LAYER_NAME_PLATFORMS = "Platforms"
 LAYER_NAME_PLAYER = "Player"
 LAYER_NAME_BACKGROUND = "Background"
 LAYER_NAME_DEATHGROUND = "Deathground"
+#endregion CONSTANTS
 
 
+#region UTILS
+# Load texture pairs
 def load_texture_pair(filename):
     return [
         arcade.load_texture(filename),
         arcade.load_texture(filename, flipped_horizontally=True),
     ]
+#endregion UTILS
 
 
+# Player class
 class Player(arcade.Sprite):
 
     def __init__(self):
-        # Set up parent class
         super().__init__()
 
-        # Default to face-right
-        self.character_face_direction = RIGHT_FACING
+        # Set player to face right at start
+        self.character_face_direction = PLAYER_RIGHT_FACING
 
         # Used for flipping between image sequences
         self.cur_texture = 0
         self.scale = CHARACTER_SCALING
 
-        # Track our state
-        self.jumping = False
-        # self.dashing = False
-
-        # Texture path
+        # Player texture path (from arcade examples)
         player_path = ":resources:images/animated_characters/robot/robot"
 
         # Load textures for idle standing
@@ -73,18 +78,18 @@ class Player(arcade.Sprite):
             texture = load_texture_pair(f"{player_path}_walk{i}.png")
             self.walk_textures.append(texture)
 
-        # Set the initial texture
+        # Set player initial texture
         self.texture = self.idle_texture_pair[0]
 
-        # Set the hit box
+        # Set player hit box
         self.hit_box = self.texture.hit_box_points
 
     def update_animation(self, delta_time: float = 1 / 60):
-        # Figure out if we need to flip face left or right
-        if self.change_x < 0 and self.character_face_direction == RIGHT_FACING:
-            self.character_face_direction = LEFT_FACING
-        elif self.change_x > 0 and self.character_face_direction == LEFT_FACING:
-            self.character_face_direction = RIGHT_FACING
+        # Animation direction
+        if self.change_x < 0 and self.character_face_direction == PLAYER_RIGHT_FACING:
+            self.character_face_direction = PLAYER_LEFT_FACING
+        elif self.change_x > 0 and self.character_face_direction == PLAYER_LEFT_FACING:
+            self.character_face_direction = PLAYER_RIGHT_FACING
 
         # Jumping animation
         if self.change_y > 0:
@@ -108,53 +113,56 @@ class Player(arcade.Sprite):
         ]
 
 
+# Game class
 class Game(arcade.Window):
 
     def __init__(self):
-        # Call the parent class and set up the window
+        # Set game window
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_TITLE)
 
-        # Set the path to start with this program
+        # Set origin path
         file_path = os.path.dirname(os.path.abspath(__file__))
         os.chdir(file_path)
 
-        # Track the current state of what key is pressed
+        # State machine
         self.left_pressed = False
         self.right_pressed = False
         self.up_pressed = False
         self.down_pressed = False
-        self.jump_needs_reset = False
-        self.dash_needs_reset = False
+        self.space_pressed = False
+        self.dashing = False
+        self.dash_timer = 0
+        self.dash_cooldown = 0
+        self.dash_direction = (0, 0)
 
-        # Our TileMap Object
+        # Tilemap Object
         self.tile_map = None
 
-        # Our Scene Object
+        # Game Scene Object
         self.scene = None
 
-        # Separate variable that holds the player
+        # Player Object
         self.player = None
 
-        # Our 'physics' engine
+        # Physics engine Object
         self.physics_engine = None
 
-        # A Camera that can be used for scrolling the screen
+        # Camera Object
         self.camera = None
 
-        # End of map x/y values
+        # Map bounds
         self.map_x_bound = 0
         self.map_y_bound = 0
 
-
     def setup(self):
-        # Set up the Cameras
+        # Set camera
         self.camera = arcade.Camera(self.width, self.height)
 
         # Map name
         # map_name = f":resources:tiled_maps/map2_level_1.json"
         map_name = "./test_map.json"
 
-        # Layer Specific Options for the Tilemap
+        # Set map layers options
         layer_options = {
             LAYER_NAME_PLATFORMS: {
                 "use_spatial_hash": True,
@@ -167,27 +175,20 @@ class Game(arcade.Window):
             },
         }
 
-        # Load in TileMap
+        # Load the map
         self.tile_map = arcade.load_tilemap(map_name, TILE_SCALING, layer_options)
-
-        # Initiate New Scene with our TileMap, this will automatically add all layers
-        # from the map as SpriteLists in the scene in the proper order.
         self.scene = arcade.Scene.from_tilemap(self.tile_map)
 
-        # Add "Player" before "Foreground" layer. This will make the foreground
-        # be drawn after the player, making it appear to be in front of the Player.
-        # Setting before using scene.add_sprite allows us to define where the SpriteList
-        # will be in the draw order. If we just use add_sprite, it will be appended to the
-        # end of the order.
+        # Load the player layer
         self.scene.add_sprite_list_after(LAYER_NAME_PLAYER, LAYER_NAME_FOREGROUND)
 
-        # Set up the player, specifically placing it at these coordinates.
+        # Set the player at start position
         self.player = Player()
         self.player.center_x = PLAYER_START_X
         self.player.center_y = PLAYER_START_Y
         self.scene.add_sprite(LAYER_NAME_PLAYER, self.player)
 
-        # Edges of map
+        # Locate edges of the map
         self.map_x_bound = self.tile_map.width * TILE_PIXEL_SIZE
         self.map_y_bound = self.tile_map.height * TILE_PIXEL_SIZE
 
@@ -195,7 +196,7 @@ class Game(arcade.Window):
         if self.tile_map.background_color:
             arcade.set_background_color(self.tile_map.background_color)
 
-        # Create the 'physics engine'
+        # Set the 'physics engine'
         self.physics_engine = arcade.PhysicsEnginePlatformer(
             self.player,
             # platforms=self.scene[LAYER_NAME_MOVING_PLATFORMS],
@@ -203,42 +204,12 @@ class Game(arcade.Window):
             walls=self.scene[LAYER_NAME_PLATFORMS]
         )
 
-
     def on_draw(self):
-        # Clear the screen to the background color
         self.clear()
-
-        # Activate the game camera
         self.camera.use()
-
-        # Draw our Scene
         self.scene.draw()
 
-
-    def on_keychange(self):
-        # Process up/down
-        if self.up_pressed and not self.down_pressed:
-            if (
-                self.physics_engine.can_jump(y_distance=10)
-                and not self.jump_needs_reset
-            ):
-                self.player.change_y = PLAYER_JUMP_SPEED
-                self.jump_needs_reset = True
-        elif self.down_pressed and not self.up_pressed:
-            self.player.change_y = -PLAYER_MOVEMENT_SPEED * 1.5
-
-        # Process left/right
-        if self.right_pressed and not self.left_pressed:
-            self.player.change_x = PLAYER_MOVEMENT_SPEED
-        elif self.left_pressed and not self.right_pressed:
-            self.player.change_x = -PLAYER_MOVEMENT_SPEED
-        else:
-            self.player.change_x = 0
-
-
     def on_key_press(self, key, modifiers):
-        """Called whenever a key is pressed."""
-
         if key == arcade.key.UP or key == arcade.key.Z:
             self.up_pressed = True
         elif key == arcade.key.DOWN or key == arcade.key.S:
@@ -247,93 +218,156 @@ class Game(arcade.Window):
             self.left_pressed = True
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.right_pressed = True
+        elif key == arcade.key.SPACE:
+            self.space_pressed = True
 
-        self.on_keychange()
-
+        self.on_key_change()
 
     def on_key_release(self, key, modifiers):
-        """Called when the user releases a key."""
-
         if key == arcade.key.UP or key == arcade.key.Z:
             self.up_pressed = False
-            self.jump_needs_reset = False
         elif key == arcade.key.DOWN or key == arcade.key.S:
             self.down_pressed = False
         elif key == arcade.key.LEFT or key == arcade.key.Q:
             self.left_pressed = False
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.right_pressed = False
+        elif key == arcade.key.SPACE:
+            self.space_pressed = False
 
-        self.on_keychange()
+        self.on_key_change()
 
+    def on_key_change(self):
+        self.process_movement()
+        self.process_jump()
+        self.process_fastfall()
+        self.process_dash()
+
+    def can_jump(self):
+        return self.up_pressed and self.physics_engine.can_jump() and not self.down_pressed
     
-    def center_camera_to_player(self):
-        # screen_center_x = self.player.center_x - (self.camera.viewport_width / 2)
-        screen_center_x = 0
-        screen_center_y = self.player.center_y - (
-            self.camera.viewport_height / 2
-        )
+    def can_fastfall(self):
+        return self.down_pressed and not self.physics_engine.can_jump()
+    
+    def can_dash(self):
+        return self.space_pressed \
+            and self.dash_timer == 0 \
+            and self.dash_cooldown == 0
 
-        if screen_center_x < 0:
-            screen_center_x = 0
-        if screen_center_y < 0:
-            screen_center_y = 0
+    def process_movement(self):
+        if self.right_pressed and not self.left_pressed:
+            self.player.change_x = PLAYER_MOVEMENT_SPEED
+        elif self.left_pressed and not self.right_pressed:
+            self.player.change_x = -PLAYER_MOVEMENT_SPEED
+        else:
+            self.player.change_x = 0
 
-        player_centered = screen_center_x, screen_center_y
+    def process_jump(self):
+        if self.can_jump():
+            self.player.change_y = PLAYER_JUMP_SPEED
 
-        self.camera.move_to(player_centered, 0.2)
+    def process_fastfall(self):
+        if self.can_fastfall():
+            self.player.change_y = -PLAYER_JUMP_SPEED * 0.5
 
+    def process_dash(self):
+        if self.can_dash():
+            self.dash_timer = PLAYER_DASH_DURATION
+            self.dash_direction = (
+                int(self.right_pressed) - int(self.left_pressed),
+                int(self.up_pressed) - int(self.down_pressed)
+            )
 
     def on_update(self, delta_time):
-        # Move the player with the physics engine
         self.physics_engine.update()
+        self.update_animations(delta_time)
+        self.update_camera()
+        self.update_dash(delta_time)
+        self.check_collision_with_goal()
+        self.check_collision_with_warps()
+        self.check_out_of_bounds()
+        self.check_collision_with_deathground()
 
-        # Update animations
-        if self.physics_engine.can_jump():
-            self.player.can_jump = False
-        else:
-            self.player.can_jump = True
-
-        # Update Animations
+    def update_animations(self, delta_time):
         self.scene.update_animation(
             delta_time, [LAYER_NAME_BACKGROUND, LAYER_NAME_PLAYER]
         )
 
-        # Did the player fall off the map?
-        if self.player.center_y < -100:
-            self.player.center_x = PLAYER_START_X
-            self.player.center_y = PLAYER_START_Y
+    def update_camera(self):
+            screen_center_x = 0
+            screen_center_y = self.player.center_y - (
+                self.camera.viewport_height / 2
+            )
 
-        # Did the player touch something they should not?
+            if screen_center_x < 0:
+                screen_center_x = 0
+            if screen_center_y < 0:
+                screen_center_y = 0
+
+            player_centered = screen_center_x, screen_center_y
+
+            self.camera.move_to(player_centered, 0.2)
+
+    def update_dash(self, delta_time):
+        if self.dash_timer > 0:
+            self.dash_timer -= delta_time
+
+            dash_length = math.sqrt(self.dash_direction[0] ** 2 + self.dash_direction[1] ** 2)
+            if dash_length > 0:
+                self.dash_direction = (
+                    self.dash_direction[0] / dash_length,
+                    self.dash_direction[1] / dash_length,
+                )
+            
+            self.player.change_x = self.dash_direction[0] * PLAYER_DASH_SPEED
+            self.player.change_y = self.dash_direction[1] * PLAYER_DASH_SPEED
+
+            self.dashing = True
+        else:
+            if self.dashing:
+                self.player.change_x = 0
+                self.player.change_y = 0
+                self.dashing = False
+                self.dash_cooldown = PLAYER_DASH_COOLDOWN
+
+            if self.dash_cooldown > 0:
+                self.dash_cooldown = max(0, self.dash_cooldown - delta_time)
+            
+            self.dash_timer = 0
+            self.dash_direction = (0, 0)
+
+    def check_out_of_bounds(self):
+        if self.player.center_y < -100:
+            self.reset_player_position()
+
+    def check_collision_with_deathground(self):
         if arcade.check_for_collision_with_list(
             self.player, self.scene[LAYER_NAME_DEATHGROUND]
         ):
-            self.player.change_x = 0
-            self.player.change_y = 0
-            self.player.center_x = PLAYER_START_X
-            self.player.center_y = PLAYER_START_Y
+            self.reset_player_position()
 
-        # Warp around the bounds
-        left_map_limit = -self.player.width + TILE_PIXEL_SIZE
-        right_map_limit = self.map_x_bound + self.player.width - TILE_PIXEL_SIZE
-        if self.player.center_x > right_map_limit:
-            self.player.center_x = left_map_limit
-        if self.player.center_x < left_map_limit:
-            self.player.center_x = right_map_limit
-        
-        # See if the user got to the goal
+    def check_collision_with_warps(self):
+        map_left_warp = -self.player.width + TILE_PIXEL_SIZE
+        map_right_warp = self.map_x_bound + self.player.width - TILE_PIXEL_SIZE
+        if self.player.center_x > map_right_warp:
+            self.player.center_x = map_left_warp
+        if self.player.center_x < map_left_warp:
+            self.player.center_x = map_right_warp
+
+    def check_collision_with_goal(self):
         if arcade.check_for_collision_with_list(
             self.player, self.scene[LAYER_NAME_GOAL]
         ):
-            arcade.close_window()
+            arcade.exit()
 
-        # Update walls, used with moving platforms
-        # self.scene.update([LAYER_NAME_MOVING_PLATFORMS])
+    def reset_player_position(self):
+        self.player.change_x = 0
+        self.player.change_y = 0
+        self.player.center_x = PLAYER_START_X
+        self.player.center_y = PLAYER_START_Y
 
-        # Position the camera
-        self.center_camera_to_player()
 
-
+# Main function
 def main():
     window = Game()
     window.setup()
