@@ -1,15 +1,27 @@
 {
-    "activeFile": "test_map.tmx",
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "test_map2.tmx",
     "expandedProjectPaths": [
         "."
     ],
     "fileStates": {
         "test_map.tmx": {
             "scale": 0.33,
-            "selectedLayer": 0,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": 1154.5454545454545,
-                "y": 5165.151515151515
+                "x": 1148.4848484848485,
+                "y": 5153.030303030303
+            }
+        },
+        "test_map2.tmx": {
+            "scale": 0.33,
+            "selectedLayer": 3,
+            "viewCenter": {
+                "x": 1148.4848484848485,
+                "y": 5162.121212121212
             }
         },
         "test_map_tiles.tsx": {
@@ -18,14 +30,21 @@
         }
     },
     "last.exportedFilePath": "C:/Users/leosa/Documents/TRAVAIL/ESGI/IAJEU/platformer",
+    "map.height": 50,
     "map.lastUsedExportFilter": "Tous les Fichiers (*)",
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 128,
+    "map.tileWidth": 128,
+    "map.width": 18,
     "openFiles": [
         "test_map.tmx",
+        "test_map2.tmx",
         "test_map_tiles.tsx"
     ],
     "project": "test_map.tiled-project",
     "recentFiles": [
+        "test_map.tmx",
         "test_map_tiles.tsx",
-        "test_map.tmx"
+        "test_map2.tmx"
     ]
 }

@@ -1,12 +1,13 @@
-import os
-import math
 import arcade
+import math
+import os
+import random
 
 #region CONSTANTS
 # Game window
 SCREEN_WIDTH = 1152
 SCREEN_HEIGHT = 576
-SCREEN_TITLE = "MechAI Parkour"
+SCREEN_TITLE = "Mephistophelia"
 
 # Entity scaling
 TILE_SCALING = 0.5
@@ -20,37 +21,24 @@ GRAVITY = 1.5
 PLAYER_JUMP_SPEED = 25
 PLAYER_DASH_SPEED = 25
 PLAYER_DASH_DURATION = 0.1
-PLAYER_DASH_COOLDOWN = 1.5
-
-# Player start position tile coordinates
-PLAYER_START_X = SPRITE_PIXEL_SIZE * TILE_SCALING * 3
-PLAYER_START_Y = SPRITE_PIXEL_SIZE * TILE_SCALING * 5
+PLAYER_DASH_COOLDOWN = 2
 
 # Player sprite facing direction
 PLAYER_RIGHT_FACING = 0
 PLAYER_LEFT_FACING = 1
 
-# Map layers
-LAYER_NAME_GOAL = "Goal"
-LAYER_NAME_FOREGROUND = "Foreground"
-# LAYER_NAME_MOVING_PLATFORMS = "Moving Platforms"
-LAYER_NAME_PLATFORMS = "Platforms"
-LAYER_NAME_PLAYER = "Player"
-LAYER_NAME_BACKGROUND = "Background"
-LAYER_NAME_DEATHGROUND = "Deathground"
+# Map
+MAP_NAME = "./test_map.json"
+MAP_LAYER_GOAL = "Goal"
+MAP_LAYER_FOREGROUND = "Foreground"
+# MAP_LAYER_MOVING_PLATFORMS = "Moving Platforms"
+MAP_LAYER_PLATFORMS = "Platforms"
+MAP_LAYER_PLAYER = "Player"
+MAP_LAYER_BACKGROUND = "Background"
+MAP_LAYER_DEATHGROUND = "Deathground"
 #endregion CONSTANTS
 
-
-#region UTILS
-# Load texture pairs
-def load_texture_pair(filename):
-    return [
-        arcade.load_texture(filename),
-        arcade.load_texture(filename, flipped_horizontally=True),
-    ]
-#endregion UTILS
-
-
+#region GAME
 # Player class
 class Player(arcade.Sprite):
 
@@ -68,14 +56,14 @@ class Player(arcade.Sprite):
         player_path = ":resources:images/animated_characters/robot/robot"
 
         # Load textures for idle standing
-        self.idle_texture_pair = load_texture_pair(f"{player_path}_idle.png")
-        self.jump_texture_pair = load_texture_pair(f"{player_path}_jump.png")
-        self.fall_texture_pair = load_texture_pair(f"{player_path}_fall.png")
+        self.idle_texture_pair = self.load_texture_pair(f"{player_path}_idle.png")
+        self.jump_texture_pair = self.load_texture_pair(f"{player_path}_jump.png")
+        self.fall_texture_pair = self.load_texture_pair(f"{player_path}_fall.png")
 
         # Load textures for walking
         self.walk_textures = []
         for i in range(8):
-            texture = load_texture_pair(f"{player_path}_walk{i}.png")
+            texture = self.load_texture_pair(f"{player_path}_walk{i}.png")
             self.walk_textures.append(texture)
 
         # Set player initial texture
@@ -83,6 +71,13 @@ class Player(arcade.Sprite):
 
         # Set player hit box
         self.hit_box = self.texture.hit_box_points
+
+    # Load texture pairs
+    def load_texture_pair(self, filename):
+        return [
+            arcade.load_texture(filename),
+            arcade.load_texture(filename, flipped_horizontally=True),
+        ]
 
     def update_animation(self, delta_time: float = 1 / 60):
         # Animation direction
@@ -128,7 +123,7 @@ class Game(arcade.Window):
         self.left_pressed = False
         self.right_pressed = False
         self.up_pressed = False
-        self.down_pressed = False
+        # self.down_pressed = False
         self.space_pressed = False
         self.dashing = False
         self.dash_timer = 0
@@ -143,6 +138,8 @@ class Game(arcade.Window):
 
         # Player Object
         self.player = None
+        self.player_start_x = 0
+        self.player_start_y = 0
 
         # Physics engine Object
         self.physics_engine = None
@@ -159,18 +156,17 @@ class Game(arcade.Window):
         self.camera = arcade.Camera(self.width, self.height)
 
         # Map name
-        # map_name = f":resources:tiled_maps/map2_level_1.json"
-        map_name = "./test_map.json"
+        map_name = MAP_NAME
 
         # Set map layers options
         layer_options = {
-            LAYER_NAME_PLATFORMS: {
+            MAP_LAYER_PLATFORMS: {
                 "use_spatial_hash": True,
             },
             # LAYER_NAME_MOVING_PLATFORMS: {
             #     "use_spatial_hash": False,
             # },
-            LAYER_NAME_DEATHGROUND: {
+            MAP_LAYER_DEATHGROUND: {
                 "use_spatial_hash": True,
             },
         }
@@ -180,13 +176,15 @@ class Game(arcade.Window):
         self.scene = arcade.Scene.from_tilemap(self.tile_map)
 
         # Load the player layer
-        self.scene.add_sprite_list_after(LAYER_NAME_PLAYER, LAYER_NAME_FOREGROUND)
+        self.scene.add_sprite_list_after(MAP_LAYER_PLAYER, MAP_LAYER_FOREGROUND)
 
         # Set the player at start position
         self.player = Player()
-        self.player.center_x = PLAYER_START_X
-        self.player.center_y = PLAYER_START_Y
-        self.scene.add_sprite(LAYER_NAME_PLAYER, self.player)
+        self.player_start_x = int(self.tile_map.get_tilemap_layer("Player").properties["start_x"]) * TILE_PIXEL_SIZE
+        self.player_start_y = int(self.tile_map.get_tilemap_layer("Player").properties["start_y"]) * TILE_PIXEL_SIZE
+        self.player.center_x = self.player_start_x
+        self.player.center_y = self.player_start_y
+        self.scene.add_sprite(MAP_LAYER_PLAYER, self.player)
 
         # Locate edges of the map
         self.map_x_bound = self.tile_map.width * TILE_PIXEL_SIZE
@@ -201,7 +199,7 @@ class Game(arcade.Window):
             self.player,
             # platforms=self.scene[LAYER_NAME_MOVING_PLATFORMS],
             gravity_constant=GRAVITY,
-            walls=self.scene[LAYER_NAME_PLATFORMS]
+            walls=self.scene[MAP_LAYER_PLATFORMS]
         )
 
     def on_draw(self):
@@ -212,22 +210,24 @@ class Game(arcade.Window):
     def on_key_press(self, key, modifiers):
         if key == arcade.key.UP or key == arcade.key.Z:
             self.up_pressed = True
-        elif key == arcade.key.DOWN or key == arcade.key.S:
-            self.down_pressed = True
+        # elif key == arcade.key.DOWN or key == arcade.key.S:
+            # self.down_pressed = True
         elif key == arcade.key.LEFT or key == arcade.key.Q:
             self.left_pressed = True
         elif key == arcade.key.RIGHT or key == arcade.key.D:
             self.right_pressed = True
         elif key == arcade.key.SPACE:
             self.space_pressed = True
+        elif key == arcade.key.R:
+            self.reset_player_position()
 
         self.on_key_change()
 
     def on_key_release(self, key, modifiers):
         if key == arcade.key.UP or key == arcade.key.Z:
             self.up_pressed = False
-        elif key == arcade.key.DOWN or key == arcade.key.S:
-            self.down_pressed = False
+        # elif key == arcade.key.DOWN or key == arcade.key.S:
+            # self.down_pressed = False
         elif key == arcade.key.LEFT or key == arcade.key.Q:
             self.left_pressed = False
         elif key == arcade.key.RIGHT or key == arcade.key.D:
@@ -240,14 +240,14 @@ class Game(arcade.Window):
     def on_key_change(self):
         self.process_movement()
         self.process_jump()
-        self.process_fastfall()
+        # self.process_fastfall()
         self.process_dash()
 
     def can_jump(self):
-        return self.up_pressed and self.physics_engine.can_jump() and not self.down_pressed
+        return self.up_pressed and self.physics_engine.can_jump() #and not self.down_pressed
     
-    def can_fastfall(self):
-        return self.down_pressed and not self.physics_engine.can_jump()
+    # def can_fastfall(self):
+        # return self.down_pressed and not self.physics_engine.can_jump()
     
     def can_dash(self):
         return self.space_pressed \
@@ -266,20 +266,21 @@ class Game(arcade.Window):
         if self.can_jump():
             self.player.change_y = PLAYER_JUMP_SPEED
 
-    def process_fastfall(self):
-        if self.can_fastfall():
-            self.player.change_y = -PLAYER_JUMP_SPEED * 0.5
+    # def process_fastfall(self):
+        # if self.can_fastfall():
+            # self.player.change_y = -PLAYER_JUMP_SPEED * 0.5
 
     def process_dash(self):
         if self.can_dash():
             self.dash_timer = PLAYER_DASH_DURATION
             self.dash_direction = (
                 int(self.right_pressed) - int(self.left_pressed),
-                int(self.up_pressed) - int(self.down_pressed)
+                int(self.up_pressed) #- int(self.down_pressed)
             )
 
     def on_update(self, delta_time):
         self.physics_engine.update()
+        # self.update_ai()
         self.update_animations(delta_time)
         self.update_camera()
         self.update_dash(delta_time)
@@ -288,9 +289,19 @@ class Game(arcade.Window):
         self.check_out_of_bounds()
         self.check_collision_with_deathground()
 
+    def update_ai(self):
+        ai_input = generate_ai_input()
+        self.left_pressed = ai_input[0]
+        self.right_pressed = ai_input[1]
+        self.up_pressed = ai_input[2]
+        self.space_pressed = ai_input[3]
+        # self.down_pressed = ai_input[3]
+        # self.space_pressed = ai_input[4]
+        self.on_key_change()
+
     def update_animations(self, delta_time):
         self.scene.update_animation(
-            delta_time, [LAYER_NAME_BACKGROUND, LAYER_NAME_PLAYER]
+            delta_time, [MAP_LAYER_BACKGROUND, MAP_LAYER_PLAYER]
         )
 
     def update_camera(self):
@@ -325,8 +336,8 @@ class Game(arcade.Window):
             self.dashing = True
         else:
             if self.dashing:
-                self.player.change_x = 0
-                self.player.change_y = 0
+                self.player.change_x = PLAYER_MOVEMENT_SPEED * self.dash_direction[0]
+                self.player.change_y = PLAYER_MOVEMENT_SPEED * self.dash_direction[1]
                 self.dashing = False
                 self.dash_cooldown = PLAYER_DASH_COOLDOWN
 
@@ -342,7 +353,7 @@ class Game(arcade.Window):
 
     def check_collision_with_deathground(self):
         if arcade.check_for_collision_with_list(
-            self.player, self.scene[LAYER_NAME_DEATHGROUND]
+            self.player, self.scene[MAP_LAYER_DEATHGROUND]
         ):
             self.reset_player_position()
 
@@ -356,16 +367,24 @@ class Game(arcade.Window):
 
     def check_collision_with_goal(self):
         if arcade.check_for_collision_with_list(
-            self.player, self.scene[LAYER_NAME_GOAL]
+            self.player, self.scene[MAP_LAYER_GOAL]
         ):
             arcade.exit()
 
     def reset_player_position(self):
         self.player.change_x = 0
         self.player.change_y = 0
-        self.player.center_x = PLAYER_START_X
-        self.player.center_y = PLAYER_START_Y
+        self.player.center_x = self.player_start_x
+        self.player.center_y = self.player_start_y
+#endregion GAME
 
+#region AI
+def generate_ai_input():
+    return [
+        random.choice([True, False]) for _ in range(4)
+        # random.choice([True, False]) for _ in range(5)
+    ]
+#endregion AI
 
 # Main function
 def main():
