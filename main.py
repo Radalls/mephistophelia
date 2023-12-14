@@ -107,7 +107,6 @@ class Player(arcade.Sprite):
             self.character_face_direction
         ]
 
-
 # Game class
 class Game(arcade.Window):
 
@@ -159,7 +158,7 @@ class Game(arcade.Window):
         map_name = MAP_NAME
 
         # Set map layers options
-        layer_options = {
+        map_layer_options = {
             MAP_LAYER_PLATFORMS: {
                 "use_spatial_hash": True,
             },
@@ -172,7 +171,7 @@ class Game(arcade.Window):
         }
 
         # Load the map
-        self.tile_map = arcade.load_tilemap(map_name, TILE_SCALING, layer_options)
+        self.tile_map = arcade.load_tilemap(map_name, TILE_SCALING, map_layer_options)
         self.scene = arcade.Scene.from_tilemap(self.tile_map)
 
         # Load the player layer
@@ -280,7 +279,7 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time):
         self.physics_engine.update()
-        # self.update_ai()
+        self.update_ai()
         self.update_animations(delta_time)
         self.update_camera()
         self.update_dash(delta_time)
@@ -391,7 +390,6 @@ def main():
     window = Game()
     window.setup()
     arcade.run()
-
 
 if __name__ == "__main__":
     main()
