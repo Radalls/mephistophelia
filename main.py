@@ -82,7 +82,6 @@ class Player(arcade.Sprite):
         # Set player hit box
         self.hit_box = self.texture.hit_box_points
 
-    # Load texture pairs
     def load_texture_pair(self, filename):
         return [
             arcade.load_texture(filename),
@@ -273,9 +272,6 @@ class Game(arcade.Window):
     def can_jump(self):
         return self.up_pressed and self.physics_engine.can_jump() #and not self.down_pressed
     
-    # def can_fastfall(self):
-        # return self.down_pressed and not self.physics_engine.can_jump()
-    
     def can_dash(self):
         return self.space_pressed \
             and self.dash_timer == 0 \
@@ -292,10 +288,6 @@ class Game(arcade.Window):
     def process_jump(self):
         if self.can_jump():
             self.player.change_y = PLAYER_JUMP_SPEED
-
-    # def process_fastfall(self):
-        # if self.can_fastfall():
-            # self.player.change_y = -PLAYER_JUMP_SPEED * 0.5
 
     def process_dash(self):
         if self.can_dash():
@@ -415,6 +407,7 @@ class Game(arcade.Window):
 
 #region AI
 class Agent:
+
     def __init__(self, ):
         self.state = 0, 0
         self.score = 0
