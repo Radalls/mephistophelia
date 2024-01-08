@@ -36,6 +36,16 @@ MAP_LAYER_PLATFORMS = "Platforms"
 MAP_LAYER_PLAYER = "Player"
 MAP_LAYER_BACKGROUND = "Background"
 MAP_LAYER_DEATHGROUND = "Deathground"
+
+# Agent
+AGENT_REWARD_DEATH = -1000
+AGENT_REWARD_GOAL = 1000
+AGENT_REWARD_STEP = -1
+AGENT_ACTIONS = [
+    'LEFT', 'RIGHT',
+    'JUMP', 'JUMP_LEFT', 'JUMP_RIGHT',
+    'DASH', 'DASH_LEFT', 'DASH_RIGHT', 'DASH_UP'
+]
 #endregion CONSTANTS
 
 #region GAME
@@ -145,14 +155,19 @@ class Game(arcade.Window):
 
         # Camera Object
         self.camera = None
+        self.gui_camera = None
 
         # Map bounds
         self.map_x_bound = 0
         self.map_y_bound = 0
 
+        # AI agent
+        self.agent = None
+
     def setup(self):
         # Set camera
         self.camera = arcade.Camera(self.width, self.height)
+        self.gui_camera = arcade.Camera(self.width, self.height)
 
         # Map name
         map_name = MAP_NAME
@@ -186,8 +201,8 @@ class Game(arcade.Window):
         self.scene.add_sprite(MAP_LAYER_PLAYER, self.player)
 
         # Locate edges of the map
-        self.map_x_bound = self.tile_map.width * TILE_PIXEL_SIZE
-        self.map_y_bound = self.tile_map.height * TILE_PIXEL_SIZE
+        self.map_x_bound = int(self.tile_map.width * TILE_PIXEL_SIZE)
+        self.map_y_bound = int(self.tile_map.height * TILE_PIXEL_SIZE)
 
         # Set the background color
         if self.tile_map.background_color:
@@ -201,10 +216,23 @@ class Game(arcade.Window):
             walls=self.scene[MAP_LAYER_PLATFORMS]
         )
 
+        # Set the AI agent
+        self.agent = Agent()
+        self.agent.setup(self.map_x_bound, self.map_y_bound)
+
     def on_draw(self):
         self.clear()
         self.camera.use()
         self.scene.draw()
+        self.gui_camera.use()
+
+        arcade.draw_text(
+            f'State: {self.agent.state} Score: {self.agent.score}',
+            1 * TILE_PIXEL_SIZE,
+            1 * TILE_PIXEL_SIZE,
+            arcade.color.RED,
+            font_size=20,
+        )
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.UP or key == arcade.key.Z:
@@ -279,7 +307,7 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time):
         self.physics_engine.update()
-        self.update_ai()
+        self.update_agent()
         self.update_animations(delta_time)
         self.update_camera()
         self.update_dash(delta_time)
@@ -288,15 +316,20 @@ class Game(arcade.Window):
         self.check_out_of_bounds()
         self.check_collision_with_deathground()
 
-    def update_ai(self):
-        ai_input = generate_ai_input()
+    def update_agent(self):
+        ai_input = self.agent.best_action()
+
         self.left_pressed = ai_input[0]
         self.right_pressed = ai_input[1]
         self.up_pressed = ai_input[2]
         self.space_pressed = ai_input[3]
-        # self.down_pressed = ai_input[3]
-        # self.space_pressed = ai_input[4]
         self.on_key_change()
+
+        self.agent.update(
+            AGENT_ACTIONS[0],
+            tuple[self.player.center_x, self.player.center_y],
+            AGENT_REWARD_STEP,
+        )
 
     def update_animations(self, delta_time):
         self.scene.update_animation(
@@ -368,6 +401,7 @@ class Game(arcade.Window):
         if arcade.check_for_collision_with_list(
             self.player, self.scene[MAP_LAYER_GOAL]
         ):
+            self.agent.score += AGENT_REWARD_GOAL
             arcade.exit()
 
     def reset_player_position(self):
@@ -375,14 +409,60 @@ class Game(arcade.Window):
         self.player.change_y = 0
         self.player.center_x = self.player_start_x
         self.player.center_y = self.player_start_y
+
+        self.agent.score += AGENT_REWARD_DEATH
 #endregion GAME
 
 #region AI
-def generate_ai_input():
-    return [
-        random.choice([True, False]) for _ in range(4)
-        # random.choice([True, False]) for _ in range(5)
-    ]
+class Agent:
+    def __init__(self, ):
+        self.state = 0, 0
+        self.score = 0
+        self.qtable = None
+
+    def setup(self, x_bound, y_bound, learning_rate=0.5, discount_factor=0.5):
+        self.qtable = {}
+        for state in self.get_all_states(x_bound, y_bound):
+            self.qtable[state] = {}
+            for action in AGENT_ACTIONS:
+                self.qtable[state][action] = 0.0
+
+        print(self.qtable[self.state])
+
+        self.learning_rate = learning_rate
+        self.discount_factor = discount_factor
+
+    def get_all_states(self, x_bound: int, y_bound: int):
+        return [
+            (x, y) for x in range(0, x_bound + 1)
+            for y in range(0, y_bound + 1)
+        ]
+
+    def best_action(self):
+        # return self.arg_max(self.qtable[self.state])
+        return self.generate_random_input()
+    
+    def arg_max(list):
+        if not list:
+            return None
+        return max(range(len(list)), key=lambda i: list[i])
+
+    def generate_random_input(self):
+        return [
+            random.choice([True, False]) for _ in range(len(AGENT_ACTIONS))
+        ]
+    
+    def update(self, action: str, new_state, reward: int):
+        self.score += reward
+        # self.qtable[self.state][action] += reward
+        # maxQ = max(self.qtable[new_state].values())
+        # delta = self.learning_rate * (reward + self.discount_factor * maxQ - self.qtable[self.state][action])
+        # self.qtable[self.state][action] += delta
+        self.state = new_state
+    
+    def reset(self):
+        self.state = 0, 0
+        self.score = 0
 #endregion AI
 
 # Main function
