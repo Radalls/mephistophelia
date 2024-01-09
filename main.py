@@ -4,31 +4,32 @@ import os
 import random
 
 #region CONSTANTS
-# Game window
+# Window
 SCREEN_WIDTH = 1152
 SCREEN_HEIGHT = 576
 SCREEN_TITLE = "Mephistophelia"
 
-# Entity scaling
+# Scaling
 TILE_SCALING = 0.5
 CHARACTER_SCALING = TILE_SCALING * 2
 SPRITE_PIXEL_SIZE = 128
 TILE_PIXEL_SIZE = SPRITE_PIXEL_SIZE * TILE_SCALING
 
-# Physics engine
-PLAYER_MOVEMENT_SPEED = 10
+# Game
 GRAVITY = 1.5
+PLAYER_MOVEMENT_SPEED = 10
 PLAYER_JUMP_SPEED = 25
 PLAYER_DASH_SPEED = 25
 PLAYER_DASH_DURATION = 0.1
 PLAYER_DASH_COOLDOWN = 2
 
-# Player sprite facing direction
+# Player
+PLAYER_PATH = "./assets/sprites/player/player"
 PLAYER_RIGHT_FACING = 0
 PLAYER_LEFT_FACING = 1
 
 # Map
-MAP_NAME = "./test_map.json"
+MAP_PATH = "./assets/maps/test_map.json"
 MAP_LAYER_GOAL = "Goal"
 MAP_LAYER_FOREGROUND = "Foreground"
 MAP_LAYER_PLATFORMS = "Platforms"
@@ -61,18 +62,15 @@ class Player(arcade.Sprite):
         self.cur_texture = 0
         self.scale = CHARACTER_SCALING
 
-        # Player texture path (from arcade examples)
-        player_path = "./assets/player"
-
-        # Load textures for idle standing
-        self.idle_texture_pair = self.load_texture_pair(f"{player_path}_idle.png")
-        self.jump_texture_pair = self.load_texture_pair(f"{player_path}_jump.png")
-        self.fall_texture_pair = self.load_texture_pair(f"{player_path}_fall.png")
+        # Load textures for idle poses
+        self.idle_texture_pair = self.load_texture_pair(f"{PLAYER_PATH}_idle.png")
+        self.jump_texture_pair = self.load_texture_pair(f"{PLAYER_PATH}_jump.png")
+        self.fall_texture_pair = self.load_texture_pair(f"{PLAYER_PATH}_fall.png")
 
         # Load textures for walking
         self.walk_textures = []
         for i in range(8):
-            texture = self.load_texture_pair(f"{player_path}_walk{i}.png")
+            texture = self.load_texture_pair(f"{PLAYER_PATH}_walk{i}.png")
             self.walk_textures.append(texture)
 
         # Set player initial texture
@@ -161,14 +159,12 @@ class Game(arcade.Window):
         # AI agent
         self.agent = None
         self.agent_reward = 0
+        self.agent_action = None
 
     def setup(self):
         # Set camera
         self.camera = arcade.Camera(self.width, self.height)
         self.gui_camera = arcade.Camera(self.width, self.height)
-
-        # Map name
-        map_name = MAP_NAME
 
         # Set map layers options
         map_layer_options = {
@@ -181,7 +177,7 @@ class Game(arcade.Window):
         }
 
         # Load the map
-        self.tile_map = arcade.load_tilemap(map_name, TILE_SCALING, map_layer_options)
+        self.tile_map = arcade.load_tilemap(MAP_PATH, TILE_SCALING, map_layer_options)
         self.scene = arcade.Scene.from_tilemap(self.tile_map)
 
         # Load the player layer
@@ -203,7 +199,7 @@ class Game(arcade.Window):
         if self.tile_map.background_color:
             arcade.set_background_color(self.tile_map.background_color)
 
-        # Set the 'physics engine'
+        # Set the physics engine
         self.physics_engine = arcade.PhysicsEnginePlatformer(
             self.player,
             gravity_constant=GRAVITY,
@@ -226,13 +222,32 @@ class Game(arcade.Window):
         self.scene.draw()
         self.gui_camera.use()
 
-        arcade.draw_text(f'State: {self.agent.state}', 12, self.height - 12, anchor_x="left", anchor_y="top")
-        arcade.draw_text(f'Score: {self.agent.score}', 12, self.height - 32, anchor_x="left", anchor_y="top")
-        arcade.draw_text(f'Dash: {int(self.dash_cooldown)}', 12, self.height - 52, anchor_x="left", anchor_y="top")
-        arcade.draw_text(f'Pos: {int(self.player.center_x)}, {int(self.player.center_y)}', 12, self.height - 78, anchor_x="left", anchor_y="top")
-        arcade.draw_text(f'Win: {self.agent.win}', 12, self.height - 98, anchor_x="left", anchor_y="top")
+        arcade.draw_text(
+            f'state: {self.agent.state}',
+            10, self.height - 10, anchor_x="left", anchor_y="top",
+        )
+        arcade.draw_text(
+            f'score: {self.agent.score}',
+            10, self.height - 30, anchor_x="left", anchor_y="top",
+        )
+        arcade.draw_text(
+            f'action: {self.agent_action}',
+            10, self.height - 50, anchor_x="left", anchor_y="top",
+        )
+        arcade.draw_text(
+            f'can_dash: {int(self.dash_cooldown)}',
+            10, self.height - 70, anchor_x="left", anchor_y="top",
+        )
+        arcade.draw_text(
+            f'win: {self.agent.win}',
+            10, self.height - 90, anchor_x="left", anchor_y="top",
+        )
+        arcade.draw_text(
+            'Press R to reset',
+            self.width -110, self.height - 10, color=arcade.color.ORANGE, font_size=10,anchor_x="left", anchor_y="top",
+        )
 
-    #region INPUT
+    #region INPUTS
     def on_key_press(self, key, modifiers):
         if key == arcade.key.UP or key == arcade.key.Z:
             self.up_pressed = True
@@ -260,35 +275,35 @@ class Game(arcade.Window):
 
         self.on_key_change()
 
-    def on_agent_input(self, agent_input):
-        if agent_input == AGENT_ACTIONS[0]:
+    def on_agent_input(self):
+        if self.agent_action == AGENT_ACTIONS[0]:
             self.left_pressed = True
-        elif agent_input == AGENT_ACTIONS[1]:
+        elif self.agent_action == AGENT_ACTIONS[1]:
             self.right_pressed = True
-        elif agent_input == AGENT_ACTIONS[2]:
+        elif self.agent_action == AGENT_ACTIONS[2]:
             self.up_pressed = True
-        elif agent_input == AGENT_ACTIONS[3]:
+        elif self.agent_action == AGENT_ACTIONS[3]:
             self.left_pressed = True
             self.up_pressed = True
-        elif agent_input == AGENT_ACTIONS[4]:
+        elif self.agent_action == AGENT_ACTIONS[4]:
             self.right_pressed = True
             self.up_pressed = True
-        elif agent_input == AGENT_ACTIONS[5]:
+        elif self.agent_action == AGENT_ACTIONS[5]:
             self.space_pressed = True
-        elif agent_input == AGENT_ACTIONS[6]:
+        elif self.agent_action == AGENT_ACTIONS[6]:
             self.left_pressed = True
             self.space_pressed = True
-        elif agent_input == AGENT_ACTIONS[7]:
+        elif self.agent_action == AGENT_ACTIONS[7]:
             self.right_pressed = True
             self.space_pressed = True
-        elif agent_input == AGENT_ACTIONS[8]:
+        elif self.agent_action == AGENT_ACTIONS[8]:
             self.up_pressed = True
             self.space_pressed = True
-        elif agent_input == AGENT_ACTIONS[9]:
+        elif self.agent_action == AGENT_ACTIONS[9]:
             self.left_pressed = True
             self.up_pressed = True
             self.space_pressed = True
-        elif agent_input == AGENT_ACTIONS[10]:
+        elif self.agent_action == AGENT_ACTIONS[10]:
             self.right_pressed = True
             self.up_pressed = True
             self.space_pressed = True
@@ -305,7 +320,7 @@ class Game(arcade.Window):
         self.right_pressed = False
         self.up_pressed = False
         self.space_pressed = False
-    #endregion INPUT
+    #endregion INPUTS
         
     #region ACTIONS    
     def can_jump(self):
@@ -337,7 +352,7 @@ class Game(arcade.Window):
             )
     #endregion ACTIONS
 
-    #region COLLISION
+    #region COLLISIONS
     def check_out_of_bounds(self):
         if self.player.center_y < -100:
             self.agent_reward += AGENT_REWARD_DEATH
@@ -348,11 +363,12 @@ class Game(arcade.Window):
             self.player, self.scene[MAP_LAYER_DEATHGROUND]
         ):
             self.agent_reward += AGENT_REWARD_DEATH
+
             self.reset_player_position()
 
     def check_collision_with_warps(self):
         map_left_warp = (self.player.width / 2)  
-        map_right_warp = self.map_x_bound - (self.player.width / 2) 
+        map_right_warp = self.map_x_bound - (self.player.width / 2)
 
         if self.player.center_x > map_right_warp:
             self.player.center_x = map_left_warp
@@ -365,7 +381,7 @@ class Game(arcade.Window):
         ):
             self.agent_reward += AGENT_REWARD_GOAL
             self.agent.win = True
-    #endregion COLLISION
+    #endregion COLLISIONS
 
     #region CYCLE
     def on_update(self, delta_time):
@@ -373,7 +389,7 @@ class Game(arcade.Window):
             return
         
         self.physics_engine.update()
-        agent_input = self.update_agent_input()
+        self.update_agent_input()
         self.update_animations(delta_time)
         self.update_camera()
         self.update_dash(delta_time)
@@ -381,22 +397,22 @@ class Game(arcade.Window):
         self.check_collision_with_warps()
         self.check_out_of_bounds()
         self.check_collision_with_deathground()
-        self.update_agent(agent_input)
+        self.update_agent()
 
     def update_agent_input(self):
-        agent_input = self.agent.best_action()
+        self.agent_action = self.agent.best_action()
         self.reset_inputs()
-        self.on_agent_input(agent_input)
+        self.on_agent_input()
 
         self.agent_reward += AGENT_REWARD_STEP
-        return agent_input
 
-    def update_agent(self, agent_input):
+    def update_agent(self):
         self.agent.update(
-            agent_input,
+            self.agent_action,
             (int(self.player.center_x), int(self.player.center_y)),
             self.agent_reward,
         )
+        
         self.agent_reward = 0
 
     def update_animations(self, delta_time):
@@ -409,21 +425,20 @@ class Game(arcade.Window):
             screen_center_y = self.player.center_y - (
                 self.camera.viewport_height / 2
             )
-
+            
             if screen_center_x < 0:
                 screen_center_x = 0
             if screen_center_y < 0:
                 screen_center_y = 0
-
+            
             player_centered = screen_center_x, screen_center_y
-
             self.camera.move_to(player_centered, 0.2)
 
     def update_dash(self, delta_time):
         if self.dash_timer > 0:
             self.dash_timer -= delta_time
-
             dash_length = math.sqrt(self.dash_direction[0] ** 2 + self.dash_direction[1] ** 2)
+            
             if dash_length > 0:
                 self.dash_direction = (
                     self.dash_direction[0] / dash_length,
@@ -432,7 +447,7 @@ class Game(arcade.Window):
             
             self.player.change_x = self.dash_direction[0] * PLAYER_DASH_SPEED
             self.player.change_y = self.dash_direction[1] * PLAYER_DASH_SPEED
-
+            
             self.dashing = True
         else:
             if self.dashing:
@@ -440,7 +455,7 @@ class Game(arcade.Window):
                 self.player.change_y = PLAYER_MOVEMENT_SPEED * self.dash_direction[1]
                 self.dashing = False
                 self.dash_cooldown = PLAYER_DASH_COOLDOWN
-
+            
             if self.dash_cooldown > 0:
                 self.dash_cooldown = max(0, self.dash_cooldown - delta_time)
             
@@ -458,7 +473,7 @@ class Game(arcade.Window):
 #region AGENT
 class Agent:
 
-    def __init__(self, x=0, y=0, x_bound=0, y_bound=0, learning_rate=0.5, discount_factor=0.5):
+    def __init__(self, x, y, x_bound, y_bound, learning_rate, discount_factor):
         self.start_x = x
         self.start_y = y
         self.state = x, y
@@ -466,15 +481,13 @@ class Agent:
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
         self.win = False
-        
         self.qtable = {}
         for state in self.get_all_states(x_bound, y_bound):
             self.qtable[state] = {}
             for action in self.get_all_actions():
                 self.qtable[state][action] = 0.0
 
-
-    def get_all_states(self, x_bound: int, y_bound: int):
+    def get_all_states(self, x_bound, y_bound):
         return [
             (x, y) for x in range(0, x_bound + 1)
             for y in range(0, y_bound + 1)
@@ -491,16 +504,13 @@ class Agent:
             random.choice([True, False]) for _ in range(len(AGENT_ACTIONS))
         ]
     
-    def update(self, action: str, new_state, reward: int):
+    def update(self, action, new_state, reward):
         self.score += reward
-
         self.qtable[self.state][action] += reward
         maxQ = max(self.qtable[new_state].values())
         delta = self.learning_rate * (reward + self.discount_factor * maxQ - self.qtable[self.state][action])
-        
         self.qtable[self.state][action] += delta
         self.state = new_state
-        print(self.qtable[self.state])
     
     def reset(self):
         self.state = self.start_x, self.start_y
