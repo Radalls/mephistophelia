@@ -227,10 +227,12 @@ class Game(arcade.Window):
 
         arcade.draw_text(
             f'State: {self.agent.state} Score: {self.agent.score}',
-            1 * TILE_PIXEL_SIZE,
-            1 * TILE_PIXEL_SIZE,
-            arcade.color.RED,
-            font_size=20,
+            16,
+            self.height - 16,
+            arcade.color.WHITE,
+            font_size=18,
+            anchor_x="left",
+            anchor_y="top",
         )
 
     def on_key_press(self, key, modifiers):
