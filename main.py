@@ -37,8 +37,8 @@ MAP_LAYER_BACKGROUND = "Background"
 MAP_LAYER_DEATHGROUND = "Deathground"
 
 # Agent
-AGENT_REWARD_DEATH = -1000
-AGENT_REWARD_GOAL = 1000
+AGENT_REWARD_DEATH = -2000
+AGENT_REWARD_GOAL = 100
 AGENT_REWARD_STEP = -1
 AGENT_ACTIONS = [
     'LEFT', 'RIGHT',
@@ -211,7 +211,14 @@ class Game(arcade.Window):
         )
 
         # Set the AI agent
-        self.agent = Agent(self.player_start_x, self.player_start_y, self.map_x_bound, self.map_y_bound)
+        self.agent = Agent(
+            self.player_start_x,
+            self.player_start_y,
+            self.map_x_bound,
+            self.map_y_bound,
+            learning_rate=0.9,
+            discount_factor=0.5,
+        )
 
     def on_draw(self):
         self.clear()
@@ -366,21 +373,24 @@ class Game(arcade.Window):
             return
         
         self.physics_engine.update()
-        self.update_agent()
+        self.update_agent_input()
         self.update_animations(delta_time)
         self.update_camera()
         self.update_dash(delta_time)
+        self.check_collision_with_goal()
         self.check_collision_with_warps()
         self.check_out_of_bounds()
         self.check_collision_with_deathground()
-        self.check_collision_with_goal()
+        self.update_agent()
 
-    def update_agent(self):
+    def update_agent_input(self):
         agent_input = self.agent.best_action()
         self.reset_inputs()
         self.on_agent_input(agent_input)
 
         self.agent_reward += AGENT_REWARD_STEP
+
+    def update_agent(self):
         self.agent.update(
             AGENT_ACTIONS[0],
             (int(self.player.center_x), int(self.player.center_y)),
