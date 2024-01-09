@@ -63,7 +63,7 @@ class Player(arcade.Sprite):
         self.scale = CHARACTER_SCALING
 
         # Player texture path (from arcade examples)
-        player_path = ":resources:images/animated_characters/robot/robot"
+        player_path = "./assets/player"
 
         # Load textures for idle standing
         self.idle_texture_pair = self.load_texture_pair(f"{player_path}_idle.png")
