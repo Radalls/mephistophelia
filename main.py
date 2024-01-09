@@ -28,7 +28,7 @@ PLAYER_RIGHT_FACING = 0
 PLAYER_LEFT_FACING = 1
 
 # Map
-MAP_NAME = "./test_map3.json"
+MAP_NAME = "./test_map.json"
 MAP_LAYER_GOAL = "Goal"
 MAP_LAYER_FOREGROUND = "Foreground"
 MAP_LAYER_PLATFORMS = "Platforms"
@@ -373,7 +373,7 @@ class Game(arcade.Window):
             return
         
         self.physics_engine.update()
-        self.update_agent_input()
+        agent_input = self.update_agent_input()
         self.update_animations(delta_time)
         self.update_camera()
         self.update_dash(delta_time)
@@ -381,7 +381,7 @@ class Game(arcade.Window):
         self.check_collision_with_warps()
         self.check_out_of_bounds()
         self.check_collision_with_deathground()
-        self.update_agent()
+        self.update_agent(agent_input)
 
     def update_agent_input(self):
         agent_input = self.agent.best_action()
@@ -389,10 +389,11 @@ class Game(arcade.Window):
         self.on_agent_input(agent_input)
 
         self.agent_reward += AGENT_REWARD_STEP
+        return agent_input
 
-    def update_agent(self):
+    def update_agent(self, agent_input):
         self.agent.update(
-            AGENT_ACTIONS[0],
+            agent_input,
             (int(self.player.center_x), int(self.player.center_y)),
             self.agent_reward,
         )
@@ -472,7 +473,6 @@ class Agent:
             for action in self.get_all_actions():
                 self.qtable[state][action] = 0.0
 
-        print(self.qtable[self.state])
 
     def get_all_states(self, x_bound: int, y_bound: int):
         return [
@@ -500,6 +500,7 @@ class Agent:
         
         self.qtable[self.state][action] += delta
         self.state = new_state
+        print(self.qtable[self.state])
     
     def reset(self):
         self.state = self.start_x, self.start_y
