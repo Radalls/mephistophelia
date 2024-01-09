@@ -4,18 +4,18 @@ import os
 import random
 
 #region CONSTANTS
-# Window
+# WINDOW
 SCREEN_WIDTH = 1152
 SCREEN_HEIGHT = 576
 SCREEN_TITLE = "Mephistophelia"
 
-# Scaling
+# SCALING
 TILE_SCALING = 0.5
 CHARACTER_SCALING = TILE_SCALING * 2
 SPRITE_PIXEL_SIZE = 128
 TILE_PIXEL_SIZE = SPRITE_PIXEL_SIZE * TILE_SCALING
 
-# Game
+# GAME
 GRAVITY = 1.5
 PLAYER_MOVEMENT_SPEED = 10
 PLAYER_JUMP_SPEED = 25
@@ -23,12 +23,12 @@ PLAYER_DASH_SPEED = 25
 PLAYER_DASH_DURATION = 0.1
 PLAYER_DASH_COOLDOWN = 2
 
-# Player
+# PLAYER
 PLAYER_PATH = "./assets/sprites/player/player"
 PLAYER_RIGHT_FACING = 0
 PLAYER_LEFT_FACING = 1
 
-# Map
+# MAP
 MAP_PATH = "./assets/maps/test_map.json"
 MAP_LAYER_GOAL = "Goal"
 MAP_LAYER_FOREGROUND = "Foreground"
@@ -37,7 +37,7 @@ MAP_LAYER_PLAYER = "Player"
 MAP_LAYER_BACKGROUND = "Background"
 MAP_LAYER_DEATHGROUND = "Deathground"
 
-# Agent
+# AGENT
 AGENT_REWARD_DEATH = -2000
 AGENT_REWARD_GOAL = 100
 AGENT_REWARD_STEP = -1
@@ -235,7 +235,7 @@ class Game(arcade.Window):
             10, self.height - 50, anchor_x="left", anchor_y="top",
         )
         arcade.draw_text(
-            f'can_dash: {int(self.dash_cooldown)}',
+            f'dash: {int(self.dash_cooldown)}',
             10, self.height - 70, anchor_x="left", anchor_y="top",
         )
         arcade.draw_text(
