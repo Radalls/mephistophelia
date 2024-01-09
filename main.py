@@ -28,7 +28,7 @@ PLAYER_RIGHT_FACING = 0
 PLAYER_LEFT_FACING = 1
 
 # Map
-MAP_NAME = "./test_map.json"
+MAP_NAME = "./test_map3.json"
 MAP_LAYER_GOAL = "Goal"
 MAP_LAYER_FOREGROUND = "Foreground"
 # MAP_LAYER_MOVING_PLATFORMS = "Moving Platforms"
@@ -227,8 +227,8 @@ class Game(arcade.Window):
 
         arcade.draw_text(
             f'State: {self.agent.state} Score: {self.agent.score}',
-            16,
-            self.height - 16,
+            12,
+            self.height - 12,
             arcade.color.WHITE,
             font_size=18,
             anchor_x="left",
@@ -299,7 +299,7 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time):
         self.physics_engine.update()
-        self.update_agent()
+        # self.update_agent()
         self.update_animations(delta_time)
         self.update_camera()
         self.update_dash(delta_time)
