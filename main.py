@@ -225,15 +225,9 @@ class Game(arcade.Window):
         self.scene.draw()
         self.gui_camera.use()
 
-        arcade.draw_text(
-            f'State: {self.agent.state} Score: {self.agent.score}',
-            12,
-            self.height - 12,
-            arcade.color.WHITE,
-            font_size=18,
-            anchor_x="left",
-            anchor_y="top",
-        )
+        arcade.draw_text(f'State: {self.agent.state}', 12, self.height - 12, anchor_x="left", anchor_y="top")
+        arcade.draw_text(f'Score: {self.agent.score}', 12, self.height - 32, anchor_x="left", anchor_y="top")
+        arcade.draw_text(f'Dash: {self.dash_cooldown}', 12, self.height - 52, anchor_x="left", anchor_y="top")
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.UP or key == arcade.key.Z:
