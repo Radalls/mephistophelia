@@ -44,7 +44,7 @@ AGENT_REWARD_STEP = -1
 AGENT_ACTIONS = [
     'LEFT', 'RIGHT',
     'JUMP', 'JUMP_LEFT', 'JUMP_RIGHT',
-    'DASH', 'DASH_LEFT', 'DASH_RIGHT', 'DASH_UP'
+    'DASH', 'DASH_LEFT', 'DASH_RIGHT', 'DASH_UP', 'DASH_UP_LEFT', 'DASH_UP_RIGHT',
 ]
 #endregion CONSTANTS
 
@@ -227,7 +227,8 @@ class Game(arcade.Window):
 
         arcade.draw_text(f'State: {self.agent.state}', 12, self.height - 12, anchor_x="left", anchor_y="top")
         arcade.draw_text(f'Score: {self.agent.score}', 12, self.height - 32, anchor_x="left", anchor_y="top")
-        arcade.draw_text(f'Dash: {self.dash_cooldown}', 12, self.height - 52, anchor_x="left", anchor_y="top")
+        arcade.draw_text(f'Dash: {self.can_dash()}', 12, self.height - 52, anchor_x="left", anchor_y="top")
+        arcade.draw_text(f'{self.player.center_x}, {self.player.center_y}', 12, self.height - 78, anchor_x="left", anchor_y="top")
 
     def on_key_press(self, key, modifiers):
         if key == arcade.key.UP or key == arcade.key.Z:
@@ -293,7 +294,7 @@ class Game(arcade.Window):
 
     def on_update(self, delta_time):
         self.physics_engine.update()
-        # self.update_agent()
+        self.update_agent()
         self.update_animations(delta_time)
         self.update_camera()
         self.update_dash(delta_time)
@@ -302,20 +303,55 @@ class Game(arcade.Window):
         self.check_out_of_bounds()
         self.check_collision_with_deathground()
 
+    def reset_move(self):
+        self.left_pressed = False
+        self.right_pressed = False
+        self.up_pressed = False
+        self.space_pressed = False
+
     def update_agent(self):
         ai_input = self.agent.best_action()
 
-        self.left_pressed = ai_input[0]
-        self.right_pressed = ai_input[1]
-        self.up_pressed = ai_input[2]
-        self.space_pressed = ai_input[3]
+        self.reset_move()
+        if ai_input == AGENT_ACTIONS[0]:
+            self.left_pressed = True
+        elif ai_input == AGENT_ACTIONS[1]:
+            self.right_pressed = True
+        elif ai_input == AGENT_ACTIONS[2]:
+            self.up_pressed = True
+        elif ai_input == AGENT_ACTIONS[3]:
+            self.left_pressed = True
+            self.up_pressed = True
+        elif ai_input == AGENT_ACTIONS[4]:
+            self.right_pressed = True
+            self.up_pressed = True
+        elif ai_input == AGENT_ACTIONS[5]:
+            self.space_pressed = True
+        elif ai_input == AGENT_ACTIONS[6]:
+            self.left_pressed = True
+            self.space_pressed = True
+        elif ai_input == AGENT_ACTIONS[7]:
+            self.right_pressed = True
+            self.space_pressed = True
+        elif ai_input == AGENT_ACTIONS[8]:
+            self.up_pressed = True
+            self.space_pressed = True
+        elif ai_input == AGENT_ACTIONS[9]:
+            self.left_pressed = True
+            self.up_pressed = True
+            self.space_pressed = True
+        elif ai_input == AGENT_ACTIONS[10]:
+            self.right_pressed = True
+            self.up_pressed = True
+            self.space_pressed = True
+
         self.on_key_change()
 
         self.agent_reward += AGENT_REWARD_STEP
 
         self.agent.update(
             AGENT_ACTIONS[0],
-            tuple[int(self.player.center_x), int(self.player.center_y)],
+            (int(self.player.center_x), int(self.player.center_y)),
             self.agent_reward,
         )
 
@@ -382,8 +418,9 @@ class Game(arcade.Window):
             self.reset_player_position()
 
     def check_collision_with_warps(self):
-        map_left_warp = -self.player.width + TILE_PIXEL_SIZE
-        map_right_warp = self.map_x_bound + self.player.width - TILE_PIXEL_SIZE
+        map_left_warp = (self.player.width / 2)  
+        map_right_warp = self.map_x_bound - (self.player.width / 2) 
+
         if self.player.center_x > map_right_warp:
             self.player.center_x = map_left_warp
         if self.player.center_x < map_left_warp:
@@ -394,7 +431,7 @@ class Game(arcade.Window):
             self.player, self.scene[MAP_LAYER_GOAL]
         ):
             self.agent_reward += AGENT_REWARD_GOAL
-            arcade.exit()
+            # arcade.exit()
 
     def reset_player_position(self):
         self.player.change_x = 0
@@ -432,7 +469,8 @@ class Agent:
         return AGENT_ACTIONS
 
     def best_action(self):
-        return self.random_action()
+        return max(self.qtable[self.state], key=self.qtable[self.state].get)
+        # return self.random_action()
         # return max(range(len(self.qtable[self.state])), key=lambda i: self.qtable[self.state][i])
     
     def random_action(self):
@@ -442,10 +480,12 @@ class Agent:
     
     def update(self, action: str, new_state, reward: int):
         self.score += reward
-        # self.qtable[self.state][action] += reward
-        # maxQ = max(self.qtable[new_state].values())
-        # delta = self.learning_rate * (reward + self.discount_factor * maxQ - self.qtable[self.state][action])
-        # self.qtable[self.state][action] += delta
+
+        self.qtable[self.state][action] += reward
+        maxQ = max(self.qtable[new_state].values())
+        delta = self.learning_rate * (reward + self.discount_factor * maxQ - self.qtable[self.state][action])
+        
+        self.qtable[self.state][action] += delta
         self.state = new_state
     
     def reset(self):
