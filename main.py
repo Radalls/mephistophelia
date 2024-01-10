@@ -46,6 +46,7 @@ AGENT_ACTIONS = [
     'JUMP', 'JUMP_LEFT', 'JUMP_RIGHT',
     'DASH', 'DASH_LEFT', 'DASH_RIGHT', 'DASH_UP', 'DASH_UP_LEFT', 'DASH_UP_RIGHT',
 ]
+AGENT_MODES = ['RANDOM', 'PIXEL', 'TILED']
 #endregion CONSTANTS
 
 #region GAME
@@ -212,6 +213,7 @@ class Game(arcade.Window):
             self.player_start_y,
             self.map_x_bound,
             self.map_y_bound,
+            learning_mode=AGENT_MODES[2],
             learning_rate=0.9,
             discount_factor=0.5,
         )
@@ -400,7 +402,11 @@ class Game(arcade.Window):
         self.update_agent()
 
     def update_agent_input(self):
-        self.agent_action = self.agent.best_action()
+        if self.agent.learning_mode == AGENT_MODES[0]:
+            self.agent_action = self.agent.random_action()
+        else:
+            self.agent_action = self.agent.best_action()
+        
         self.reset_inputs()
         self.on_agent_input()
 
@@ -473,16 +479,33 @@ class Game(arcade.Window):
 #region AGENT
 class Agent:
 
-    def __init__(self, x, y, x_bound, y_bound, learning_rate, discount_factor):
+    def __init__(self, x, y, x_bound, y_bound, learning_mode, learning_rate, discount_factor):
         self.start_x = x
         self.start_y = y
         self.state = x, y
         self.score = 0
+        self.win = False
+        
+        self.learning_mode = learning_mode
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
-        self.win = False
         self.qtable = {}
+
+        if self.learning_mode == AGENT_MODES[2]:
+            self.init_qtable_tiled(x_bound, y_bound)
+        else:
+            self.init_qtable(x_bound, y_bound)
+
+        print(self.qtable[self.state])
+
+    def init_qtable(self, x_bound, y_bound):
         for state in self.get_all_states(x_bound, y_bound):
+            self.qtable[state] = {}
+            for action in self.get_all_actions():
+                self.qtable[state][action] = 0.0
+
+    def init_qtable_tiled(self, x_bound, y_bound):
+        for state in self.get_all_states_tiled(x_bound, y_bound):
             self.qtable[state] = {}
             for action in self.get_all_actions():
                 self.qtable[state][action] = 0.0
@@ -493,6 +516,15 @@ class Agent:
             for y in range(0, y_bound + 1)
         ]
 
+    def get_all_states_tiled(self, x_bound, y_bound):
+        return [
+            (x, y) for x in range(0, x_bound + 1, int(TILE_PIXEL_SIZE))
+            for y in range(0, y_bound + 1, int(TILE_PIXEL_SIZE))
+        ]
+    
+    def get_closest_state_tiled(self, x, y):
+        return (int((x // TILE_PIXEL_SIZE) * TILE_PIXEL_SIZE), int((y // TILE_PIXEL_SIZE) * TILE_PIXEL_SIZE))
+
     def get_all_actions(self):
         return AGENT_ACTIONS
 
@@ -500,11 +532,12 @@ class Agent:
         return max(self.qtable[self.state], key=self.qtable[self.state].get)
     
     def random_action(self):
-        return [
-            random.choice([True, False]) for _ in range(len(AGENT_ACTIONS))
-        ]
+        return random.choice(AGENT_ACTIONS)
     
     def update(self, action, new_state, reward):
+        if self.learning_mode == AGENT_MODES[2]:
+            new_state = self.get_closest_state_tiled(*new_state)
+        
         self.score += reward
         self.qtable[self.state][action] += reward
         maxQ = max(self.qtable[new_state].values())
