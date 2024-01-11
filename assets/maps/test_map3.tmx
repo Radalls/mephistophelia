@@ -119,6 +119,10 @@
 </data>
  </layer>
  <layer id="6" name="Goal" width="18" height="18">
+  <properties>
+   <property name="x" value="4"/>
+   <property name="y" value="4"/>
+  </properties>
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
