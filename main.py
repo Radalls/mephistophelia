@@ -157,6 +157,7 @@ class Game(arcade.Window):
         self.dash_timer = 0
         self.dash_cooldown = 0
         self.dash_direction = (0, 0)
+        self.win = False
 
         # Game mode
         self.game_mode = None
@@ -299,13 +300,13 @@ class Game(arcade.Window):
         self.gui_camera.use()
 
         arcade.draw_text(
-            f'dash: {int(self.dash_cooldown)}',
-            10, self.height - 70, anchor_x="left", anchor_y="top",
+            f'win: {self.win}',
+            10, self.height - 10, anchor_x="left", anchor_y="top",
         )
         arcade.draw_text(
-            f'win: {self.agent.win}',
-            10, self.height - 90, anchor_x="left", anchor_y="top",
-        )
+                f'dash: {int(self.dash_cooldown)}',
+                10, self.height - 30, anchor_x="left", anchor_y="top",
+            )
         arcade.draw_text(
             'Press R to reset',
             self.width -110, self.height - 10, color=arcade.color.ORANGE, font_size=10,anchor_x="left", anchor_y="top",
@@ -314,15 +315,15 @@ class Game(arcade.Window):
         if self.is_agent_play():
             arcade.draw_text(
                 f'state: {self.agent.state}',
-                10, self.height - 10, anchor_x="left", anchor_y="top",
+                10, self.height - 50, anchor_x="left", anchor_y="top",
             )
             arcade.draw_text(
                 f'score: {self.agent.score}',
-                10, self.height - 30, anchor_x="left", anchor_y="top",
+                10, self.height - 70, anchor_x="left", anchor_y="top",
             )
             arcade.draw_text(
                 f'action: {self.agent_action}',
-                10, self.height - 50, anchor_x="left", anchor_y="top",
+                10, self.height - 90, anchor_x="left", anchor_y="top",
             )
 
     #region INPUTS
@@ -337,9 +338,6 @@ class Game(arcade.Window):
             self.space_pressed = True
         elif key == arcade.key.R:
             self.reset_player_position()
-            
-            if self.is_agent_play():
-                self.agent.reset()
 
         self.on_key_change()
 
@@ -497,11 +495,11 @@ class Game(arcade.Window):
             sprite, self.scene[MAP_LAYER_GOAL]
         ):
             if sprite == self.player:
+                self.win = True
                 if self.is_human_play():
                     self.reset_player_position()
                 else:
                     self.agent_reward += AGENT_REWARD_GOAL
-                    self.agent.win = True
             return True
         return False
     
@@ -535,9 +533,9 @@ class Game(arcade.Window):
 
     #region CYCLE
     def on_update(self, delta_time):
-        if self.is_agent_play():
-            if self.agent.win:
-                return
+        # if self.is_agent_play():
+        if self.win:
+            return
         
         self.physics_engine.update()
 
@@ -634,6 +632,12 @@ class Game(arcade.Window):
         self.player.change_y = 0
         self.player.center_x = self.player_start_x
         self.player.center_y = self.player_start_y
+        self.reset_inputs()
+        self.win = False
+
+        if self.is_agent_play():
+            self.agent.reset()
+
     #endregion CYCLE
         
     #region UTILS
@@ -653,7 +657,6 @@ class Agent:
         self.start_y = y
         self.state = self.start_x, self.start_y
         self.score = 0
-        self.win = False
         
         self.learning_mode = learning_mode
         self.learning_rate = learning_rate
@@ -721,9 +724,7 @@ class Agent:
             self.state = self.get_closest_state_tiled(self.start_x, self.start_y)
         else:
             self.state = self.start_x, self.start_y
-
         self.score = 0
-        self.win = False
     #endregion ACTIONS
 
     #region UTILS
@@ -744,7 +745,7 @@ class Agent:
 # Main function
 def main():
     player_path = './assets/sprites/player/player'
-    map_path = './assets/maps/test_map3.json'
+    map_path = './assets/maps/test_map.json'
     game_mode = GAME_MODES[1]
     learning_mode = AGENT_MODES[2]
     learning_rate = 0.9
