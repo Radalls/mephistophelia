@@ -4,46 +4,47 @@ import os
 import random
 
 #region CONSTANTS
-# WINDOW
-SCREEN_WIDTH = 1152
-SCREEN_HEIGHT = 576
-SCREEN_TITLE = "Mephistophelia"
-
 # SCALING
-TILE_SCALING = 0.5
-CHARACTER_SCALING = TILE_SCALING * 2
+TILE_SCALING      = 0.5
+CHARACTER_SCALING = int(TILE_SCALING * 2)
 SPRITE_PIXEL_SIZE = 128
-TILE_PIXEL_SIZE = SPRITE_PIXEL_SIZE * TILE_SCALING
+TILE_PIXEL_SIZE   = int(SPRITE_PIXEL_SIZE * TILE_SCALING)
+
+# WINDOW
+SCREEN_WIDTH  = int(TILE_PIXEL_SIZE * 18)
+SCREEN_HEIGHT = int(TILE_PIXEL_SIZE * 10)
+SCREEN_TITLE  = 'Mephistophelia'
 
 # GAME
-GRAVITY = 1.5
+GRAVITY               = 1.5
 PLAYER_MOVEMENT_SPEED = 10
-PLAYER_JUMP_SPEED = 25
-PLAYER_DASH_SPEED = 25
-PLAYER_DASH_DURATION = 0.1
-PLAYER_DASH_COOLDOWN = 2
+PLAYER_JUMP_SPEED     = 25
+PLAYER_DASH_SPEED     = 25
+PLAYER_DASH_DURATION  = 0.1
+PLAYER_DASH_COOLDOWN  = 2
 GAME_MODES = ['HUMAN', 'AGENT']
 
 # PLAYER
 PLAYER_RIGHT_FACING = 0
-PLAYER_LEFT_FACING = 1
+PLAYER_LEFT_FACING  = 1
 
 # MAP
-MAP_LAYER_GOAL = "Goal"
-MAP_LAYER_FOREGROUND = "Foreground"
-MAP_LAYER_PLATFORMS = "Platforms"
-MAP_LAYER_PLAYER = "Player"
-MAP_LAYER_BACKGROUND = "Background"
-MAP_LAYER_DEATHGROUND = "Deathground"
+MAP_LAYER_GOAL        = 'Goal'
+MAP_LAYER_FOREGROUND  = 'Foreground'
+MAP_LAYER_PLATFORMS   = 'Platforms'
+MAP_LAYER_PLAYER      = 'Player'
+MAP_LAYER_BACKGROUND  = 'Background'
+MAP_LAYER_DEATHGROUND = 'Deathground'
 
 # AGENT
 AGENT_REWARD_DEATH = -100
-AGENT_REWARD_GOAL = 1000
-AGENT_REWARD_STEP = -1
+AGENT_REWARD_GOAL  = 1000
+AGENT_REWARD_STEP  = -1
+
 AGENT_ACTIONS = [
     'LEFT', 'RIGHT',
-    'JUMP_LEFT', 'JUMP_RIGHT'#, 'JUMP',
-    # 'DASH', 'DASH_LEFT', 'DASH_RIGHT', 'DASH_UP', 'DASH_UP_LEFT', 'DASH_UP_RIGHT',
+    'JUMP_LEFT', 'JUMP_RIGHT'
+    # 'JUMP', 'DASH', 'DASH_LEFT', 'DASH_RIGHT', 'DASH_UP', 'DASH_UP_LEFT', 'DASH_UP_RIGHT',
 ]
 AGENT_MODES = ['RANDOM', 'PIXEL', 'TILED', 'RADAR']
 #endregion CONSTANTS
@@ -78,17 +79,6 @@ class Player(arcade.Sprite):
 
         # Set player hit box
         self.hit_box = self.texture.hit_box_points
-
-        # Set player radar
-        self.radar = None
-        self.radar_left = None
-        self.radar_right = None
-        self.radar_up = None
-        self.radar_up_left = None
-        self.radar_up_right = None
-        self.radar_down = None
-        self.radar_down_left = None
-        self.radar_down_right = None
 
     def load_texture_pair(self, filename):
         return [
@@ -179,6 +169,8 @@ class Game(arcade.Window):
         self.agent = None
         self.agent_reward = 0
         self.agent_action = None
+        self.agent_radars = None
+        self.agent_hitbox = None
 
     def setup(self, player_path, map_path, game_mode, learning_mode, learning_rate, discount_factor):
         # Set game mode
@@ -217,16 +209,6 @@ class Game(arcade.Window):
         self.player.center_y = self.player_start_y
         self.scene.add_sprite(MAP_LAYER_PLAYER, self.player)
 
-
-        # Locate edges of the map
-        self.map_x_bound = int(self.tile_map.width * TILE_PIXEL_SIZE)
-        self.map_y_bound = int(self.tile_map.height * TILE_PIXEL_SIZE)
-
-        
-        # Locate edges of the map
-        self.map_x_bound = int(self.tile_map.width * TILE_PIXEL_SIZE)
-        self.map_y_bound = int(self.tile_map.height * TILE_PIXEL_SIZE)
-
         # Set the background color
         if self.tile_map.background_color:
             arcade.set_background_color(self.tile_map.background_color)
@@ -238,8 +220,8 @@ class Game(arcade.Window):
             walls=self.scene[MAP_LAYER_PLATFORMS]
         )
 
+        # Set the AI agent
         if self.is_agent_play():
-            # Set the AI agent
             self.agent = Agent(
                 int(self.player_start_x),
                 int(self.player_start_y),
@@ -250,51 +232,42 @@ class Game(arcade.Window):
                 discount_factor = discount_factor,
             )
 
-            # Set player radar sprites
-            self.player.radar_left = arcade.SpriteSolidColor(5, 5, arcade.color.RED)
-            self.player.radar_right = arcade.SpriteSolidColor(5, 5, arcade.color.RED)
-            self.player.radar_up = arcade.SpriteSolidColor(5, 5, arcade.color.RED)
-            self.player.radar_up_left = arcade.SpriteSolidColor(5, 5, arcade.color.RED)
-            self.player.radar_up_right = arcade.SpriteSolidColor(5, 5, arcade.color.RED)
-            self.player.radar_down = arcade.SpriteSolidColor(5, 5, arcade.color.RED)
-            self.player.radar_down_left = arcade.SpriteSolidColor(5, 5, arcade.color.RED)
-            self.player.radar_down_right = arcade.SpriteSolidColor(5, 5, arcade.color.RED)
-            
-            # Set player radar object
-            self.player.radar = [
-                self.player.radar_left,
-                self.player.radar_right,
-                self.player.radar_up,
-                self.player.radar_up_left,
-                self.player.radar_up_right,
-                self.player.radar_down,
-                self.player.radar_down_left,
-                self.player.radar_down_right,
-            ]
+            if self.agent.is_learning_radar():
+                self.agent_radars = []
 
-            # Attach radar sprites to player
-            self.scene.add_sprite(MAP_LAYER_PLAYER, self.player.radar_left)
-            self.scene.add_sprite(MAP_LAYER_PLAYER, self.player.radar_right)
-            self.scene.add_sprite(MAP_LAYER_PLAYER, self.player.radar_up)
-            self.scene.add_sprite(MAP_LAYER_PLAYER, self.player.radar_up_left)
-            self.scene.add_sprite(MAP_LAYER_PLAYER, self.player.radar_up_right)
-            self.scene.add_sprite(MAP_LAYER_PLAYER, self.player.radar_down)
-            self.scene.add_sprite(MAP_LAYER_PLAYER, self.player.radar_down_left)
-            self.scene.add_sprite(MAP_LAYER_PLAYER, self.player.radar_down_right)
+                # Set the radars
+                # left - right - up - up_left - up_right - down_left - down_right
+                for i in range(0, 7):
+                    self.agent_radars.append(arcade.Sprite(
+                        'assets/sprites/radar/radar.png',
+                        image_height=TILE_PIXEL_SIZE,
+                        image_width=TILE_PIXEL_SIZE,
+                        center_x=TILE_PIXEL_SIZE / 2,
+                        center_y=TILE_PIXEL_SIZE / 2,
+                    ))
+                    self.scene.add_sprite(MAP_LAYER_PLAYER, self.agent_radars[i])
 
-            # Set player radar sprites positions
-            self.process_radar()
+                # Set the hitbox
+                self.agent_hitbox = arcade.Sprite(
+                    'assets/sprites/radar/hitbox.png',
+                    center_x=self.player.center_x,
+                    center_y=self.player.center_y,
+                )
+                self.scene.add_sprite(MAP_LAYER_PLAYER, self.agent_hitbox)
+                
+                # Set radars positions
+                self.process_agent_radar()
 
-            # Locate goal
-            self.goal_x = int(self.tile_map.get_tilemap_layer("Goal").properties["x"]) * TILE_PIXEL_SIZE - TILE_PIXEL_SIZE / 2
-            self.goal_y = int(self.tile_map.get_tilemap_layer("Goal").properties["y"]) * TILE_PIXEL_SIZE - TILE_PIXEL_SIZE / 2
+        # Locate goal
+        self.goal_x = int(self.tile_map.get_tilemap_layer("Goal").properties["x"]) * TILE_PIXEL_SIZE - TILE_PIXEL_SIZE / 2
+        self.goal_y = int(self.tile_map.get_tilemap_layer("Goal").properties["y"]) * TILE_PIXEL_SIZE - TILE_PIXEL_SIZE / 2
 
     def on_draw(self):
         self.clear()
         self.camera.use()
         self.scene.draw()
 
-        if self.is_agent_play():
+        if self.is_agent_play() and self.agent.is_learning_radar():
             arcade.draw_line(self.player.center_x, self.player.center_y, self.goal_x, self.goal_y, arcade.color.YELLOW, 2)
         
         self.gui_camera.use()
@@ -304,9 +277,9 @@ class Game(arcade.Window):
             10, self.height - 10, anchor_x="left", anchor_y="top",
         )
         arcade.draw_text(
-                f'dash: {int(self.dash_cooldown)}',
-                10, self.height - 30, anchor_x="left", anchor_y="top",
-            )
+            f'dash: {int(self.dash_cooldown)}',
+            10, self.height - 30, anchor_x="left", anchor_y="top",
+        )
         arcade.draw_text(
             'Press R to reset',
             self.width -110, self.height - 10, color=arcade.color.ORANGE, font_size=10,anchor_x="left", anchor_y="top",
@@ -393,8 +366,8 @@ class Game(arcade.Window):
         self.process_jump()
         self.process_dash()
 
-        if self.is_agent_play():
-            self.process_radar()
+        if self.is_agent_play() and self.agent.is_learning_radar():
+            self.process_agent_radar()
 
     def reset_inputs(self):
         self.left_pressed = False
@@ -432,30 +405,31 @@ class Game(arcade.Window):
                 int(self.up_pressed),
             )
     
-    def process_radar(self):
-        self.player.radar_left.center_x = self.player.center_x - TILE_PIXEL_SIZE
-        self.player.radar_left.center_y = self.player.center_y
-
-        self.player.radar_right.center_x = self.player.center_x + TILE_PIXEL_SIZE
-        self.player.radar_right.center_y = self.player.center_y
-
-        self.player.radar_up.center_x = self.player.center_x
-        self.player.radar_up.center_y = self.player.center_y + TILE_PIXEL_SIZE * 3
-
-        self.player.radar_up_left.center_x = self.player.center_x - TILE_PIXEL_SIZE
-        self.player.radar_up_left.center_y = self.player.center_y + TILE_PIXEL_SIZE * 3
-
-        self.player.radar_up_right.center_x = self.player.center_x + TILE_PIXEL_SIZE
-        self.player.radar_up_right.center_y = self.player.center_y + TILE_PIXEL_SIZE * 3
-
-        self.player.radar_down.center_x = self.player.center_x
-        self.player.radar_down.center_y = self.player.center_y - TILE_PIXEL_SIZE
-
-        self.player.radar_down_left.center_x = self.player.center_x - TILE_PIXEL_SIZE
-        self.player.radar_down_left.center_y = self.player.center_y - TILE_PIXEL_SIZE
-
-        self.player.radar_down_right.center_x = self.player.center_x + TILE_PIXEL_SIZE
-        self.player.radar_down_right.center_y = self.player.center_y - TILE_PIXEL_SIZE
+    def process_agent_radar(self):
+        # left
+        self.agent_radars[0].center_x = self.player.center_x - TILE_PIXEL_SIZE
+        self.agent_radars[0].center_y = self.player.center_y
+        # right
+        self.agent_radars[1].center_x = self.player.center_x + TILE_PIXEL_SIZE
+        self.agent_radars[1].center_y = self.player.center_y
+        # up
+        self.agent_radars[2].center_x = self.player.center_x
+        self.agent_radars[2].center_y = self.player.center_y + TILE_PIXEL_SIZE * 3
+        # up_left
+        self.agent_radars[3].center_x = self.player.center_x - TILE_PIXEL_SIZE
+        self.agent_radars[3].center_y = self.player.center_y + TILE_PIXEL_SIZE * 3
+        # up_right
+        self.agent_radars[4].center_x = self.player.center_x + TILE_PIXEL_SIZE
+        self.agent_radars[4].center_y = self.player.center_y + TILE_PIXEL_SIZE * 3
+        # down_left
+        self.agent_radars[5].center_x = self.player.center_x - TILE_PIXEL_SIZE
+        self.agent_radars[5].center_y = self.player.center_y - TILE_PIXEL_SIZE
+        # down_right
+        self.agent_radars[6].center_x = self.player.center_x + TILE_PIXEL_SIZE
+        self.agent_radars[6].center_y = self.player.center_y - TILE_PIXEL_SIZE
+        # hitbox
+        self.agent_hitbox.center_x = self.player.center_x
+        self.agent_hitbox.center_y = self.player.center_y
     #endregion ACTIONS
 
     #region COLLISIONS
@@ -476,19 +450,22 @@ class Game(arcade.Window):
             sprite, self.scene[MAP_LAYER_DEATHGROUND]
         ):
             if sprite == self.player:
-                self.agent_reward += AGENT_REWARD_DEATH
-                self.reset_player_position()
+                if self.is_human_play():
+                    self.reset_player_position()
+                elif self.is_agent_play():
+                    self.agent_reward += AGENT_REWARD_DEATH
+                    self.reset_player_position(reset_agent=False)
             return True
         return False
 
-    def check_collision_with_warps(self):
-        map_left_warp = (self.player.width / 2)  
-        map_right_warp = self.map_x_bound - (self.player.width / 2)
+    def check_collision_with_warps(self, sprite):
+        map_left_warp = (sprite.width / 2)  
+        map_right_warp = self.map_x_bound - (sprite.width / 2)
 
-        if self.player.center_x > map_right_warp:
-            self.player.center_x = map_left_warp
-        if self.player.center_x < map_left_warp:
-            self.player.center_x = map_right_warp
+        if sprite.center_x > map_right_warp:
+            sprite.center_x = map_left_warp
+        if sprite.center_x < map_left_warp:
+            sprite.center_x = map_right_warp
 
     def check_collision_with_goal(self, sprite):
         if arcade.check_for_collision_with_list(
@@ -496,44 +473,15 @@ class Game(arcade.Window):
         ):
             if sprite == self.player:
                 self.win = True
-                if self.is_human_play():
-                    self.reset_player_position()
-                else:
+
+                if self.is_agent_play():
                     self.agent_reward += AGENT_REWARD_GOAL
             return True
         return False
-    
-    def check_collision_with_goal_line(self, sprite):
-        goal_line_start_x = self.player.center_x
-        goal_line_start_y = self.player.center_y
-        goal_line_end_x = self.goal_x
-        goal_line_end_y = self.goal_y
-
-        if arcade.geometry.check_for_collision_with_line(
-            sprite,
-            (goal_line_start_x, goal_line_start_y),
-            (goal_line_end_x, goal_line_end_y),
-        ):
-            return True
-        return False
-
-    def check_collision_with_radar(self):
-        radar_collisions = []
-        for sprite in self.player.radar:
-            collision_platform = self.check_collision_with_platforms(sprite)
-            collision_deathground = self.check_collision_with_deathground(sprite)
-            collision_goal = self.check_collision_with_goal(sprite)
-            collision_goal_line = self.check_collision_with_goal_line(sprite)
-            sprite_collisions = [collision_platform, collision_deathground, collision_goal, collision_goal_line]
-            
-            radar_collisions.append(sprite_collisions)
-        
-        return radar_collisions
     #endregion COLLISIONS
 
     #region CYCLE
     def on_update(self, delta_time):
-        # if self.is_agent_play():
         if self.win:
             return
         
@@ -547,7 +495,7 @@ class Game(arcade.Window):
         self.update_dash(delta_time)
         self.check_collision_with_goal(self.player)
         self.check_collision_with_deathground(self.player)
-        self.check_collision_with_warps()
+        self.check_collision_with_warps(self.player)
         self.check_out_of_bounds()
 
         if self.is_agent_play():
@@ -565,12 +513,7 @@ class Game(arcade.Window):
         self.agent_reward += AGENT_REWARD_STEP
 
     def update_agent(self):
-        new_state = None
-
-        if self.agent.is_learning_radar():
-            new_state = self.check_collision_with_radar()
-        else:
-            new_state = (int(self.player.center_x), int(self.player.center_y))
+        new_state = self.update_agent_state()
         
         self.agent.update(
             self.agent_action,
@@ -580,24 +523,55 @@ class Game(arcade.Window):
         
         self.agent_reward = 0
 
+    def update_agent_state(self):
+        if self.agent.is_learning_radar():
+            return self.update_agent_radar_state()
+        else:
+            return (int(self.player.center_x), int(self.player.center_y))
+
+    def update_agent_radar_state(self):
+        radars_state = []
+        radars_to_goal = []
+
+        for radar in self.agent_radars:
+            collision_platform = self.check_collision_with_platforms(radar)
+            collision_deathground = self.check_collision_with_deathground(radar)
+            collision_goal = self.check_collision_with_goal(radar)
+
+            if collision_platform:
+                radar_state = ('PF', False)
+            elif collision_deathground:
+                radar_state = ('DG', False)
+            elif collision_goal:
+                radar_state = ('GO', False)
+            else:
+                radar_state = ('*', False)
+
+            radar_to_goal = math.sqrt((radar.center_x - self.goal_x) ** 2 + (radar.center_y - self.goal_y) ** 2)
+            radars_to_goal.append(radar_to_goal)
+
+            radars_state.append(radar_state)
+
+        closest_radar_index = radars_to_goal.index(min(radars_to_goal))
+        radars_state[closest_radar_index] = (radars_state[closest_radar_index][0], True)
+
+        return tuple(radars_state)
+
     def update_animations(self, delta_time):
         self.scene.update_animation(
             delta_time, [MAP_LAYER_BACKGROUND, MAP_LAYER_PLAYER]
         )
 
     def update_camera(self):
-            screen_center_x = 0
-            screen_center_y = self.player.center_y - (
-                self.camera.viewport_height / 2
-            )
-            
-            if screen_center_x < 0:
-                screen_center_x = 0
-            if screen_center_y < 0:
-                screen_center_y = 0
-            
-            player_centered = screen_center_x, screen_center_y
-            self.camera.move_to(player_centered, 0.2)
+        camera_x = 0
+        camera_y = self.player.center_y - (self.camera.viewport_height / 2)
+
+        if camera_y < 0:
+            camera_y = 0
+        elif camera_y > self.map_y_bound - self.camera.viewport_height:
+            camera_y = self.map_y_bound - self.camera.viewport_height
+
+        self.camera.move_to((camera_x, camera_y), 0.2)
 
     def update_dash(self, delta_time):
         if self.dash_timer > 0:
@@ -627,7 +601,7 @@ class Game(arcade.Window):
             self.dash_timer = 0
             self.dash_direction = (0, 0)
     
-    def reset_player_position(self):
+    def reset_player_position(self, reset_agent=True):
         self.player.change_x = 0
         self.player.change_y = 0
         self.player.center_x = self.player_start_x
@@ -635,9 +609,8 @@ class Game(arcade.Window):
         self.reset_inputs()
         self.win = False
 
-        if self.is_agent_play():
+        if self.is_agent_play() and reset_agent:
             self.agent.reset()
-
     #endregion CYCLE
         
     #region UTILS
@@ -663,9 +636,11 @@ class Agent:
         self.discount_factor = discount_factor
         self.qtable = {}
 
-        if self.is_learning_tiled():
-            self.init_qtable_tiled(x_bound, y_bound)
+        if self.is_learning_radar():
+            self.add_state(self.state)
+        elif self.is_learning_tiled():
             self.state = self.get_closest_state_tiled(*self.state)
+            self.init_qtable_tiled(x_bound, y_bound)
         else:
             self.init_qtable_pixel(x_bound, y_bound)
 
@@ -690,12 +665,18 @@ class Agent:
 
     def get_all_states_tiled(self, x_bound, y_bound):
         return [
-            (x, y) for x in range(0, x_bound + 1, int(TILE_PIXEL_SIZE))
-            for y in range(0, y_bound + 1, int(TILE_PIXEL_SIZE))
+            (x, y) for x in range(0, x_bound + 1, TILE_PIXEL_SIZE)
+            for y in range(0, y_bound + 1, TILE_PIXEL_SIZE)
         ]
     
     def get_closest_state_tiled(self, x, y):
         return (int((x // TILE_PIXEL_SIZE) * TILE_PIXEL_SIZE), int((y // TILE_PIXEL_SIZE) * TILE_PIXEL_SIZE))
+    
+    def add_state(self, state):
+        if state not in self.qtable:
+            self.qtable[state] = {}
+            for action in self.get_all_actions():
+                self.qtable[state][action] = 0.0
 
     def get_all_actions(self):
         return AGENT_ACTIONS
@@ -713,6 +694,9 @@ class Agent:
             new_state = self.get_closest_state_tiled(*new_state)
         
         # Q-Learning
+        if self.is_learning_radar():
+            self.add_state(new_state)
+        
         self.score += reward
         maxQ = max(self.qtable[new_state].values())
         delta = self.learning_rate * (reward + self.discount_factor * maxQ - self.qtable[self.state][action])
@@ -744,12 +728,12 @@ class Agent:
 
 # Main function
 def main():
-    player_path = './assets/sprites/player/player'
-    map_path = './assets/maps/test_map.json'
-    game_mode = GAME_MODES[1]
-    learning_mode = AGENT_MODES[2]
-    learning_rate = 0.9
-    discount_factor = 0.5
+    player_path     = './assets/sprites/player/player'
+    map_path        = './assets/maps/map1.json'
+    game_mode       = GAME_MODES[1]
+    learning_mode   = AGENT_MODES[3]
+    learning_rate   = 0.9
+    discount_factor = 0.1
 
     window = Game()
     window.setup(player_path, map_path, game_mode, learning_mode, learning_rate, discount_factor)
