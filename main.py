@@ -2,6 +2,7 @@ import arcade
 import math
 import os
 import random
+import pickle
 
 #region CONSTANTS
 # SCALING
@@ -22,7 +23,9 @@ PLAYER_JUMP_SPEED     = 25
 PLAYER_DASH_SPEED     = 25
 PLAYER_DASH_DURATION  = 0.1
 PLAYER_DASH_COOLDOWN  = 2
-GAME_MODES = ['HUMAN', 'AGENT']
+
+PLAY_MODES = ['HUMAN', 'AGENT']
+VIEW_MODES = ['ANALYTIC', 'AUTO']
 
 # PLAYER
 PLAYER_RIGHT_FACING = 0
@@ -37,16 +40,12 @@ MAP_LAYER_BACKGROUND  = 'Background'
 MAP_LAYER_DEATHGROUND = 'Deathground'
 
 # AGENT
-AGENT_REWARD_DEATH = -100
-AGENT_REWARD_GOAL  = 1000
-AGENT_REWARD_STEP  = -1
+AGENT_REWARD_DEATH = -int(((TILE_PIXEL_SIZE * 18) / 2))
+AGENT_REWARD_GOAL  = int(TILE_PIXEL_SIZE * 18)
+AGENT_REWARD_STEP  = -2
 
-AGENT_ACTIONS = [
-    'LEFT', 'RIGHT',
-    'JUMP_LEFT', 'JUMP_RIGHT'
-    # 'JUMP', 'DASH', 'DASH_LEFT', 'DASH_RIGHT', 'DASH_UP', 'DASH_UP_LEFT', 'DASH_UP_RIGHT',
-]
-AGENT_MODES = ['RANDOM', 'PIXEL', 'TILED', 'RADAR']
+AGENT_ACTIONS        = ['LEFT', 'RIGHT', 'JUMP_LEFT', 'JUMP_RIGHT']
+AGENT_LEARNING_MODES = ['RANDOM', 'RADAR']
 #endregion CONSTANTS
 
 #region GAME
@@ -149,8 +148,9 @@ class Game(arcade.Window):
         self.dash_direction = (0, 0)
         self.win = False
 
-        # Game mode
-        self.game_mode = None
+        # Mode
+        self.play_mode = None
+        self.view_mode = None
 
         # Map bounds
         self.map_x_bound = 0
@@ -171,10 +171,12 @@ class Game(arcade.Window):
         self.agent_action = None
         self.agent_radars = None
         self.agent_hitbox = None
+        self.agent_save_path = None
 
-    def setup(self, player_path, map_path, game_mode, learning_mode, learning_rate, discount_factor):
-        # Set game mode
-        self.game_mode = game_mode
+    def setup(self, player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor):
+        # Set mode
+        self.play_mode = play_mode
+        self.view_mode = view_mode
         
         # Set camera
         self.camera = arcade.Camera(self.width, self.height)
@@ -209,6 +211,10 @@ class Game(arcade.Window):
         self.player.center_y = self.player_start_y
         self.scene.add_sprite(MAP_LAYER_PLAYER, self.player)
 
+        # Locate goal
+        self.goal_x = int(self.tile_map.get_tilemap_layer("Goal").properties["x"]) * TILE_PIXEL_SIZE - TILE_PIXEL_SIZE / 2
+        self.goal_y = int(self.tile_map.get_tilemap_layer("Goal").properties["y"]) * TILE_PIXEL_SIZE - TILE_PIXEL_SIZE / 2
+        
         # Set the background color
         if self.tile_map.background_color:
             arcade.set_background_color(self.tile_map.background_color)
@@ -231,6 +237,9 @@ class Game(arcade.Window):
                 learning_rate = learning_rate,
                 discount_factor = discount_factor,
             )
+
+            self.agent_save_path = save_path
+            self.agent.load_save(save_path)
 
             if self.agent.is_learning_radar():
                 self.agent_radars = []
@@ -258,9 +267,9 @@ class Game(arcade.Window):
                 # Set radars positions
                 self.process_agent_radar()
 
-        # Locate goal
-        self.goal_x = int(self.tile_map.get_tilemap_layer("Goal").properties["x"]) * TILE_PIXEL_SIZE - TILE_PIXEL_SIZE / 2
-        self.goal_y = int(self.tile_map.get_tilemap_layer("Goal").properties["y"]) * TILE_PIXEL_SIZE - TILE_PIXEL_SIZE / 2
+            self.agent.state = self.update_agent_state()
+            if self.agent.is_learning_radar():
+                self.agent.add_state(self.agent.state)
 
     def on_draw(self):
         self.clear()
@@ -284,6 +293,10 @@ class Game(arcade.Window):
             'Press R to reset',
             self.width -110, self.height - 10, color=arcade.color.ORANGE, font_size=10,anchor_x="left", anchor_y="top",
         )
+        arcade.draw_text(
+            'Press ESC to quit',
+            self.width -120, self.height - 50, color=arcade.color.ORANGE, font_size=10,anchor_x="left", anchor_y="top",
+        )
 
         if self.is_agent_play():
             arcade.draw_text(
@@ -298,6 +311,10 @@ class Game(arcade.Window):
                 f'action: {self.agent_action}',
                 10, self.height - 90, anchor_x="left", anchor_y="top",
             )
+            arcade.draw_text(
+                'Press ENT to save',
+                self.width -124, self.height - 30, color=arcade.color.ORANGE, font_size=10,anchor_x="left", anchor_y="top",
+            )
 
     #region INPUTS
     def on_key_press(self, key, modifiers):
@@ -311,6 +328,13 @@ class Game(arcade.Window):
             self.space_pressed = True
         elif key == arcade.key.R:
             self.reset_player_position()
+        elif key == arcade.key.ENTER:
+            if self.is_agent_play():
+                self.agent.save(self.agent_save_path)
+        elif key == arcade.key.ESCAPE:
+            if self.is_agent_play():
+                print(self.agent.qtable)
+            arcade.close_window()
 
         self.on_key_change()
 
@@ -332,32 +356,11 @@ class Game(arcade.Window):
         elif self.agent_action == AGENT_ACTIONS[1]:
             self.right_pressed = True
         elif self.agent_action == AGENT_ACTIONS[2]:
+            self.left_pressed = True
             self.up_pressed = True
         elif self.agent_action == AGENT_ACTIONS[3]:
-            self.left_pressed = True
-            self.up_pressed = True
-        elif self.agent_action == AGENT_ACTIONS[4]:
             self.right_pressed = True
             self.up_pressed = True
-        elif self.agent_action == AGENT_ACTIONS[5]:
-            self.space_pressed = True
-        elif self.agent_action == AGENT_ACTIONS[6]:
-            self.left_pressed = True
-            self.space_pressed = True
-        elif self.agent_action == AGENT_ACTIONS[7]:
-            self.right_pressed = True
-            self.space_pressed = True
-        elif self.agent_action == AGENT_ACTIONS[8]:
-            self.up_pressed = True
-            self.space_pressed = True
-        elif self.agent_action == AGENT_ACTIONS[9]:
-            self.left_pressed = True
-            self.up_pressed = True
-            self.space_pressed = True
-        elif self.agent_action == AGENT_ACTIONS[10]:
-            self.right_pressed = True
-            self.up_pressed = True
-            self.space_pressed = True
 
         self.on_key_change()
 
@@ -414,13 +417,13 @@ class Game(arcade.Window):
         self.agent_radars[1].center_y = self.player.center_y
         # up
         self.agent_radars[2].center_x = self.player.center_x
-        self.agent_radars[2].center_y = self.player.center_y + TILE_PIXEL_SIZE * 3
+        self.agent_radars[2].center_y = self.player.center_y + TILE_PIXEL_SIZE * 2
         # up_left
         self.agent_radars[3].center_x = self.player.center_x - TILE_PIXEL_SIZE
-        self.agent_radars[3].center_y = self.player.center_y + TILE_PIXEL_SIZE * 3
+        self.agent_radars[3].center_y = self.player.center_y + TILE_PIXEL_SIZE * 2
         # up_right
         self.agent_radars[4].center_x = self.player.center_x + TILE_PIXEL_SIZE
-        self.agent_radars[4].center_y = self.player.center_y + TILE_PIXEL_SIZE * 3
+        self.agent_radars[4].center_y = self.player.center_y + TILE_PIXEL_SIZE * 2
         # down_left
         self.agent_radars[5].center_x = self.player.center_x - TILE_PIXEL_SIZE
         self.agent_radars[5].center_y = self.player.center_y - TILE_PIXEL_SIZE
@@ -435,8 +438,11 @@ class Game(arcade.Window):
     #region COLLISIONS
     def check_out_of_bounds(self):
         if self.player.center_y < -100:
-            self.agent_reward += AGENT_REWARD_DEATH
-            self.reset_player_position()
+            if self.is_human_play():
+                self.reset_player_position()
+            elif self.is_agent_play():
+                self.agent_reward += AGENT_REWARD_DEATH
+                self.reset_player_position(reset_agent=False)
 
     def check_collision_with_platforms(self, sprite):
         if arcade.check_for_collision_with_list(
@@ -483,7 +489,10 @@ class Game(arcade.Window):
     #region CYCLE
     def on_update(self, delta_time):
         if self.win:
-            return
+            if self.is_analytic_view():
+                return
+            elif self.is_auto_view():
+                self.reset_player_position()
         
         self.physics_engine.update()
 
@@ -610,15 +619,22 @@ class Game(arcade.Window):
         self.win = False
 
         if self.is_agent_play() and reset_agent:
+            self.agent.state = self.update_agent_state()
             self.agent.reset()
     #endregion CYCLE
         
     #region UTILS
     def is_human_play(self):
-        return self.game_mode == GAME_MODES[0]
+        return self.play_mode == PLAY_MODES[0]
     
     def is_agent_play(self):
-        return self.game_mode == GAME_MODES[1]
+        return self.play_mode == PLAY_MODES[1]
+    
+    def is_analytic_view(self):
+        return self.view_mode == VIEW_MODES[0]
+    
+    def is_auto_view(self):
+        return self.view_mode == VIEW_MODES[1]
     #endregion UTILS
 #endregion GAME
 
@@ -628,7 +644,7 @@ class Agent:
     def __init__(self, x, y, x_bound, y_bound, learning_mode, learning_rate, discount_factor):
         self.start_x = x
         self.start_y = y
-        self.state = self.start_x, self.start_y
+        self.state = None
         self.score = 0
         
         self.learning_mode = learning_mode
@@ -636,42 +652,22 @@ class Agent:
         self.discount_factor = discount_factor
         self.qtable = {}
 
-        if self.is_learning_radar():
-            self.add_state(self.state)
-        elif self.is_learning_tiled():
-            self.state = self.get_closest_state_tiled(*self.state)
-            self.init_qtable_tiled(x_bound, y_bound)
-        else:
-            self.init_qtable_pixel(x_bound, y_bound)
+        if self.is_learning_random():
+            self.init_qtable(x_bound, y_bound)
 
     #region QTABLE
-    def init_qtable_pixel(self, x_bound, y_bound):
-        for state in self.get_all_states_pixel(x_bound, y_bound):
-            self.qtable[state] = {}
-            for action in self.get_all_actions():
-                self.qtable[state][action] = 0.0
-        
-    def init_qtable_tiled(self, x_bound, y_bound):
-        for state in self.get_all_states_tiled(x_bound, y_bound):
+    def init_qtable(self, x_bound, y_bound):
+        for state in self.get_all_states(x_bound, y_bound):
             self.qtable[state] = {}
             for action in self.get_all_actions():
                 self.qtable[state][action] = 0.0
 
-    def get_all_states_pixel(self, x_bound, y_bound):
+    def get_all_states(self, x_bound, y_bound):
         return [
             (x, y) for x in range(0, x_bound + 1)
             for y in range(0, y_bound + 1)
         ]
 
-    def get_all_states_tiled(self, x_bound, y_bound):
-        return [
-            (x, y) for x in range(0, x_bound + 1, TILE_PIXEL_SIZE)
-            for y in range(0, y_bound + 1, TILE_PIXEL_SIZE)
-        ]
-    
-    def get_closest_state_tiled(self, x, y):
-        return (int((x // TILE_PIXEL_SIZE) * TILE_PIXEL_SIZE), int((y // TILE_PIXEL_SIZE) * TILE_PIXEL_SIZE))
-    
     def add_state(self, state):
         if state not in self.qtable:
             self.qtable[state] = {}
@@ -690,10 +686,6 @@ class Agent:
         return random.choice(AGENT_ACTIONS)
     
     def update(self, action, new_state, reward):
-        if self.is_learning_tiled():
-            new_state = self.get_closest_state_tiled(*new_state)
-        
-        # Q-Learning
         if self.is_learning_radar():
             self.add_state(new_state)
         
@@ -704,39 +696,42 @@ class Agent:
         self.state = new_state
     
     def reset(self):
-        if self.is_learning_tiled():
-            self.state = self.get_closest_state_tiled(self.start_x, self.start_y)
-        else:
-            self.state = self.start_x, self.start_y
         self.score = 0
     #endregion ACTIONS
+        
+    #region SAVE
+    def load_save(self, filename):
+        if os.path.exists(filename):
+            with open(filename, 'rb') as file:
+                self.qtable = pickle.load(file)
+    
+    def save(self, filename):
+        with open(filename, 'wb') as file:
+            pickle.dump(self.qtable, file)
+    #endregion DATA
 
     #region UTILS
     def is_learning_random(self):
-        return self.learning_mode == AGENT_MODES[0]
-    
-    def is_learning_pixel(self):
-        return self.learning_mode == AGENT_MODES[1]
-    
-    def is_learning_tiled(self):
-        return self.learning_mode == AGENT_MODES[2]
+        return self.learning_mode == AGENT_LEARNING_MODES[0]
     
     def is_learning_radar(self):
-        return self.learning_mode == AGENT_MODES[3]
+        return self.learning_mode == AGENT_LEARNING_MODES[1]
     #endregion UTILS
 #endregion AGENT
 
 # Main function
 def main():
     player_path     = './assets/sprites/player/player'
-    map_path        = './assets/maps/map1.json'
-    game_mode       = GAME_MODES[1]
-    learning_mode   = AGENT_MODES[3]
-    learning_rate   = 0.9
-    discount_factor = 0.1
+    map_path        = './assets/maps/json/map_1-1.json'
+    save_path       = 'agent.qtable'
+    play_mode       = PLAY_MODES[1]
+    view_mode       = VIEW_MODES[1]
+    learning_mode   = AGENT_LEARNING_MODES[1]
+    learning_rate   = 1
+    discount_factor = 0.9
 
     window = Game()
-    window.setup(player_path, map_path, game_mode, learning_mode, learning_rate, discount_factor)
+    window.setup(player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor)
     arcade.run()
 
 if __name__ == "__main__":
