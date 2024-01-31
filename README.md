@@ -13,7 +13,7 @@
 
 - press `R` during play to reset and watch the learning occur
 - press `ENTER` during play to save the progress of the AI (existing save is auto-loaded)
-- press `ESCAPE` during play to close the game (does not save on quit!)
+- press `ESCAPE` during play to close the game (saves on quit)
 
 ### In Code
 
