@@ -3,6 +3,7 @@ import math
 import os
 import random
 import pickle
+import matplotlib.pyplot as plt
 
 #region CONSTANTS
 # SCALING
@@ -327,7 +328,7 @@ class Game(arcade.Window):
         elif key == arcade.key.SPACE:
             self.space_pressed = True
         elif key == arcade.key.R:
-            self.reset_player_position()
+            self.reset_player_position(reset_agent=False)
         elif key == arcade.key.ENTER:
             if self.is_agent_play():
                 self.agent.save(self.agent_save_path)
@@ -411,25 +412,25 @@ class Game(arcade.Window):
     def process_agent_radar(self):
         # left
         self.agent_radars[0].center_x = self.player.center_x - TILE_PIXEL_SIZE
-        self.agent_radars[0].center_y = self.player.center_y
+        self.agent_radars[0].center_y = self.player.center_y - TILE_PIXEL_SIZE / 2
         # right
         self.agent_radars[1].center_x = self.player.center_x + TILE_PIXEL_SIZE
-        self.agent_radars[1].center_y = self.player.center_y
+        self.agent_radars[1].center_y = self.player.center_y - TILE_PIXEL_SIZE / 2
         # up
         self.agent_radars[2].center_x = self.player.center_x
-        self.agent_radars[2].center_y = self.player.center_y + TILE_PIXEL_SIZE * 2
+        self.agent_radars[2].center_y = self.player.center_y + TILE_PIXEL_SIZE * 1.5
         # up_left
         self.agent_radars[3].center_x = self.player.center_x - TILE_PIXEL_SIZE
-        self.agent_radars[3].center_y = self.player.center_y + TILE_PIXEL_SIZE * 2
+        self.agent_radars[3].center_y = self.player.center_y + TILE_PIXEL_SIZE * 1.5
         # up_right
         self.agent_radars[4].center_x = self.player.center_x + TILE_PIXEL_SIZE
-        self.agent_radars[4].center_y = self.player.center_y + TILE_PIXEL_SIZE * 2
+        self.agent_radars[4].center_y = self.player.center_y + TILE_PIXEL_SIZE * 1.5
         # down_left
         self.agent_radars[5].center_x = self.player.center_x - TILE_PIXEL_SIZE
-        self.agent_radars[5].center_y = self.player.center_y - TILE_PIXEL_SIZE
+        self.agent_radars[5].center_y = self.player.center_y - TILE_PIXEL_SIZE * 1.5
         # down_right
         self.agent_radars[6].center_x = self.player.center_x + TILE_PIXEL_SIZE
-        self.agent_radars[6].center_y = self.player.center_y - TILE_PIXEL_SIZE
+        self.agent_radars[6].center_y = self.player.center_y - TILE_PIXEL_SIZE * 1.5
         # hitbox
         self.agent_hitbox.center_x = self.player.center_x
         self.agent_hitbox.center_y = self.player.center_y
@@ -646,6 +647,7 @@ class Agent:
         self.start_y = y
         self.state = None
         self.score = 0
+        self.history = []
         
         self.learning_mode = learning_mode
         self.learning_rate = learning_rate
@@ -696,6 +698,7 @@ class Agent:
         self.state = new_state
     
     def reset(self):
+        self.history.append(self.score)
         self.score = 0
     #endregion ACTIONS
         
@@ -730,9 +733,13 @@ def main():
     learning_rate   = 1
     discount_factor = 0.9
 
-    window = Game()
-    window.setup(player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor)
+    game = Game()
+    game.setup(player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor)
     arcade.run()
+
+    game.agent.save(save_path)
+    plt.plot(game.agent.history)
+    plt.show()
 
 if __name__ == "__main__":
     main()
