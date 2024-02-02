@@ -174,6 +174,87 @@ class Game(arcade.Window):
         self.agent_hitbox = None
         self.agent_save_path = None
 
+        # Texts
+        self.text_quit_action = arcade.Text(
+            text='Press ESC to quit',
+            start_x=self.width - TILE_PIXEL_SIZE * 3,
+            start_y=self.height - 10,
+            color=arcade.color.ORANGE,
+            font_size=10,
+            anchor_x="left",
+            anchor_y="top",
+        )
+        self.text_reset_action = arcade.Text(
+            text='Press R to reset',
+            start_x=self.width - TILE_PIXEL_SIZE * 3,
+            start_y=self.height - 30,
+            color=arcade.color.ORANGE,
+            font_size=10,
+            anchor_x="left",
+            anchor_y="top",
+        )
+        self.text_win = arcade.Text(
+            text=f'win: ',
+            start_x=TILE_PIXEL_SIZE,
+            start_y=self.height - 10,
+            color=arcade.color.GREEN,
+            anchor_x="left",
+            anchor_y="top",
+        )
+        self.text_agent_action = arcade.Text(
+            text=f'action: ',
+            start_x=TILE_PIXEL_SIZE,
+            start_y=self.height - 30,
+            anchor_x="left",
+            anchor_y="top",
+        )
+        self.text_agent_state = arcade.Text(
+            text=f'state: ',
+            start_x=TILE_PIXEL_SIZE,
+            start_y=self.height - 50,
+            anchor_x="left",
+            anchor_y="top",
+        )
+        self.text_agent_score = arcade.Text(
+            text=f'score: ',
+            start_x=TILE_PIXEL_SIZE,
+            start_y=self.height - 70,
+            anchor_x="left",
+            anchor_y="top",
+        )
+        self.text_agent_noise = arcade.Text(
+            text=f'noise: ',
+            start_x=TILE_PIXEL_SIZE,
+            start_y=self.height - 90,
+            anchor_x="left",
+            anchor_y="top",
+        )
+        self.text_agent_noise_action = arcade.Text(
+            text='Press N to noise',
+            start_x=self.width - TILE_PIXEL_SIZE * 3,
+            start_y=self.height - 50,
+            color=arcade.color.ORANGE,
+            font_size=10,
+            anchor_x="left",
+            anchor_y="top",
+        )
+        self.text_agent_save_action = arcade.Text(
+            text='Press ENT to save',
+            start_x=self.width - TILE_PIXEL_SIZE * 3,
+            start_y=self.height - 70,
+            color=arcade.color.ORANGE,
+            font_size=10,
+            anchor_x="left",
+            anchor_y="top",
+        )
+        self.text_human_dash = arcade.Text(
+            text=f'dash: ',
+            start_x=TILE_PIXEL_SIZE,
+            start_y=self.height - 30,
+            anchor_x="left",
+            anchor_y="top",
+        )
+
     def setup(self, player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor):
         # Set mode
         self.play_mode = play_mode
@@ -282,40 +363,35 @@ class Game(arcade.Window):
         
         self.gui_camera.use()
 
-        arcade.draw_text(
-            f'win: {self.win}',
-            10, self.height - 10, anchor_x="left", anchor_y="top",
-        )
-        arcade.draw_text(
-            f'dash: {int(self.dash_cooldown)}',
-            10, self.height - 30, anchor_x="left", anchor_y="top",
-        )
-        arcade.draw_text(
-            'Press R to reset',
-            self.width -110, self.height - 10, color=arcade.color.ORANGE, font_size=10,anchor_x="left", anchor_y="top",
-        )
-        arcade.draw_text(
-            'Press ESC to quit',
-            self.width -120, self.height - 50, color=arcade.color.ORANGE, font_size=10,anchor_x="left", anchor_y="top",
-        )
+        self.text_quit_action.draw()
+        self.text_reset_action.draw()
+        
+        self.text_win.text = f'win: {self.win}'
+        self.text_win.draw()
 
-        if self.is_agent_play():
-            arcade.draw_text(
-                f'state: {self.agent.state}',
-                10, self.height - 50, anchor_x="left", anchor_y="top",
-            )
-            arcade.draw_text(
-                f'score: {self.agent.score}',
-                10, self.height - 70, anchor_x="left", anchor_y="top",
-            )
-            arcade.draw_text(
-                f'action: {self.agent_action}',
-                10, self.height - 90, anchor_x="left", anchor_y="top",
-            )
-            arcade.draw_text(
-                'Press ENT to save',
-                self.width -124, self.height - 30, color=arcade.color.ORANGE, font_size=10,anchor_x="left", anchor_y="top",
-            )
+        if self.is_human_play():
+            self.draw_human_gui()
+        elif self.is_agent_play():
+            self.draw_agent_gui()
+
+    def draw_human_gui(self):
+        self.text_human_dash.text = f'dash: {int(self.dash_cooldown)}'
+        self.text_human_dash.draw()
+
+    def draw_agent_gui(self):
+        self.text_agent_save_action.draw()
+        self.text_agent_noise_action.draw()
+
+        self.text_agent_action.text = f'action: {self.agent_action}'
+        self.text_agent_state.text = f'state: {self.agent.state}'
+        self.text_agent_score.text = f'score: {self.agent.score}'
+        self.text_agent_noise.text = f'noise: {self.agent.noise:.2f}'
+
+        self.text_agent_action.draw()
+        self.text_agent_state.draw()
+        self.text_agent_score.draw()
+        self.text_agent_noise.draw()
+        
 
     #region INPUTS
     def on_key_press(self, key, modifiers):
@@ -329,6 +405,10 @@ class Game(arcade.Window):
             self.space_pressed = True
         elif key == arcade.key.R:
             self.reset_player_position(reset_agent=False)
+        elif key == arcade.key.N:
+            if self.is_agent_play():
+                self.agent.noise = 1
+                self.reset_player_position()
         elif key == arcade.key.ENTER:
             if self.is_agent_play():
                 self.agent.save(self.agent_save_path)
@@ -648,6 +728,7 @@ class Agent:
         self.state = None
         self.score = 0
         self.history = []
+        self.noise = 0.0
         
         self.learning_mode = learning_mode
         self.learning_rate = learning_rate
@@ -682,6 +763,8 @@ class Agent:
 
     #region ACTIONS
     def best_action(self):
+        if self.noise > 0 and random.random() < self.noise:
+            return self.random_action()
         return max(self.qtable[self.state], key=self.qtable[self.state].get)
     
     def random_action(self):
@@ -690,6 +773,9 @@ class Agent:
     def update(self, action, new_state, reward):
         if self.is_learning_radar():
             self.add_state(new_state)
+
+        if self.noise > 0:
+            self.noise -= 0.01
         
         self.score += reward
         maxQ = max(self.qtable[new_state].values())
@@ -727,7 +813,7 @@ def main():
     player_path     = './assets/sprites/player/player'
     map_path        = './assets/maps/json/map_1-1.json'
     save_path       = 'agent.qtable'
-    play_mode       = PLAY_MODES[1]
+    play_mode       = PLAY_MODES[0]
     view_mode       = VIEW_MODES[1]
     learning_mode   = AGENT_LEARNING_MODES[1]
     learning_rate   = 1
@@ -737,9 +823,9 @@ def main():
     game.setup(player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor)
     arcade.run()
 
-    game.agent.save(save_path)
-    plt.plot(game.agent.history)
-    plt.show()
+    if game.is_agent_play():
+        plt.plot(game.agent.history)
+        plt.show()
 
 if __name__ == "__main__":
     main()
