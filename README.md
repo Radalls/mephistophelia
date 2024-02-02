@@ -11,9 +11,10 @@
 
 ### In Game
 
-- press `R` during play to reset and watch the learning occur
+- press `ESCAPE` during play to close the game (does not save on quit!)
 - press `ENTER` during play to save the progress of the AI (existing save is auto-loaded)
-- press `ESCAPE` during play to close the game (saves on quit)
+- press `R` during play to reset and watch the learning occur
+- press `N` during play to temporarily add noise to the AI actions (avoid local optima)
 
 ### In Code
 
