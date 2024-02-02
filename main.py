@@ -775,7 +775,7 @@ class Agent:
             self.add_state(new_state)
 
         if self.noise > 0:
-            self.noise -= 0.01
+            self.noise -= 1E-4
         
         self.score += reward
         maxQ = max(self.qtable[new_state].values())
@@ -811,9 +811,9 @@ class Agent:
 # Main function
 def main():
     player_path     = './assets/sprites/player/player'
-    map_path        = './assets/maps/json/map_1-1.json'
+    map_path        = './assets/maps/json/map_2-3.json'
     save_path       = 'agent.qtable'
-    play_mode       = PLAY_MODES[0]
+    play_mode       = PLAY_MODES[1]
     view_mode       = VIEW_MODES[1]
     learning_mode   = AGENT_LEARNING_MODES[1]
     learning_rate   = 1
