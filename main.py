@@ -811,7 +811,7 @@ class Agent:
 # Main function
 def main():
     player_path     = './assets/sprites/player/player'
-    map_path        = './assets/maps/json/map_2-3.json'
+    map_path        = './assets/maps/json/map_1-1.json'
     save_path       = 'agent.qtable'
     play_mode       = PLAY_MODES[1]
     view_mode       = VIEW_MODES[1]
