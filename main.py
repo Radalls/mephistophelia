@@ -7,7 +7,7 @@ from src.environment import Environment
 def main():
     player_path     = '../assets/sprites/player/player'
     map_path        = '../assets/maps/json/map_4-7.json'
-    save_path       = 'agent.qtable'
+    save_path       = '../agent.qtable'
     play_mode       = PLAY_MODES[1]
     view_mode       = VIEW_MODES[1]
     learning_mode   = AGENT_LEARNING_MODES[1]
