@@ -6,12 +6,12 @@ from src.environment import Environment
 
 def main():
     player_path     = '../assets/sprites/player/player'
-    map_path        = '../assets/maps/json/map_1-1.json'
+    map_path        = '../assets/maps/json/map_5-2.json'
     save_path       = '../agent.qtable'
     play_mode       = PLAY_MODES[1]
     view_mode       = VIEW_MODES[1]
     learning_mode   = AGENT_LEARNING_MODES[1]
-    learning_rate   = 1
+    learning_rate   = 0.1
     discount_factor = 0.9
 
     env = Environment()
