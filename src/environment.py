@@ -72,6 +72,8 @@ class Environment(arcade.Window):
         self.agent_radars = None
         self.agent_hitbox = None
         self.agent_save_path = None
+        self.agent_framerate = 60
+        self.agent_iteration = 0
 
         # Texts
         self.text_quit_action = arcade.Text(
@@ -100,31 +102,38 @@ class Environment(arcade.Window):
             anchor_x="left",
             anchor_y="top",
         )
+        self.text_agent_iteration = arcade.Text(
+            text=f'iteration: ',
+            start_x=TILE_PIXEL_SIZE,
+            start_y=self.height - 30,
+            anchor_x="left",
+            anchor_y="top",
+        )
         self.text_agent_action = arcade.Text(
             text=f'action: ',
             start_x=TILE_PIXEL_SIZE,
-            start_y=self.height - 30,
+            start_y=self.height - 50,
             anchor_x="left",
             anchor_y="top",
         )
         self.text_agent_state = arcade.Text(
             text=f'state: ',
             start_x=TILE_PIXEL_SIZE,
-            start_y=self.height - 50,
+            start_y=self.height - 70,
             anchor_x="left",
             anchor_y="top",
         )
         self.text_agent_score = arcade.Text(
             text=f'score: ',
             start_x=TILE_PIXEL_SIZE,
-            start_y=self.height - 70,
+            start_y=self.height - 90,
             anchor_x="left",
             anchor_y="top",
         )
         self.text_agent_noise = arcade.Text(
             text=f'noise: ',
             start_x=TILE_PIXEL_SIZE,
-            start_y=self.height - 90,
+            start_y=self.height - 110,
             anchor_x="left",
             anchor_y="top",
         )
@@ -137,10 +146,19 @@ class Environment(arcade.Window):
             anchor_x="left",
             anchor_y="top",
         )
+        self.text_agent_fast_action = arcade.Text(
+            text='Press F to fast',
+            start_x=self.width - TILE_PIXEL_SIZE * 3,
+            start_y=self.height - 70,
+            color=arcade.color.ORANGE,
+            font_size=10,
+            anchor_x="left",
+            anchor_y="top",
+        )
         self.text_agent_save_action = arcade.Text(
             text='Press ENT to save',
             start_x=self.width - TILE_PIXEL_SIZE * 3,
-            start_y=self.height - 70,
+            start_y=self.height - 90,
             color=arcade.color.ORANGE,
             font_size=10,
             anchor_x="left",
@@ -154,7 +172,7 @@ class Environment(arcade.Window):
             anchor_y="top",
         )
 
-    def setup(self, player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor, agent_framerate):
+    def setup(self, player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor):
         # Set mode
         self.play_mode = play_mode
         self.view_mode = view_mode
@@ -252,7 +270,7 @@ class Environment(arcade.Window):
             if self.agent.is_learning_radar():
                 self.agent.add_state(self.agent.state)
 
-            self.set_update_rate(1 / agent_framerate)
+            self.update_agent_framerate(self.agent_framerate)
 
     def on_draw(self):
         self.clear()
@@ -282,12 +300,15 @@ class Environment(arcade.Window):
     def draw_agent_gui(self):
         self.text_agent_save_action.draw()
         self.text_agent_noise_action.draw()
+        self.text_agent_fast_action.draw()
 
+        self.text_agent_iteration.text = f'iteration: {self.agent_iteration}'
         self.text_agent_action.text = f'action: {self.agent_action}'
         self.text_agent_state.text = f'state: {self.agent.state}'
         self.text_agent_score.text = f'score: {self.agent.score}'
         self.text_agent_noise.text = f'noise: {self.agent.noise:.2f}'
 
+        self.text_agent_iteration.draw()
         self.text_agent_action.draw()
         self.text_agent_state.draw()
         self.text_agent_score.draw()
@@ -310,6 +331,12 @@ class Environment(arcade.Window):
             if self.is_agent_play():
                 self.agent.noise = 1
                 self.reset_player_position()
+        elif key == arcade.key.F:
+            if self.is_agent_play():
+                if self.agent_framerate == 60:
+                    self.update_agent_framerate(600)
+                else:
+                    self.update_agent_framerate(60)
         elif key == arcade.key.ENTER:
             if self.is_agent_play():
                 self.agent.save(self.agent_save_path)
@@ -464,6 +491,7 @@ class Environment(arcade.Window):
 
                 if self.is_agent_play():
                     self.agent_reward += AGENT_REWARD_GOAL
+                    self.agent_iteration += 1
             return True
         return False
     #endregion COLLISIONS
@@ -603,6 +631,10 @@ class Environment(arcade.Window):
         if self.is_agent_play() and reset_agent:
             self.agent.state = self.update_agent_state()
             self.agent.reset()
+    
+    def update_agent_framerate(self, agent_framerate):
+        self.agent_framerate = agent_framerate
+        self.set_update_rate(1 / agent_framerate)
     #endregion CYCLE
         
     #region UTILS
