@@ -15,6 +15,7 @@
 - press `ENTER` during play to save the progress of the AI (existing save is auto-loaded)
 - press `R` during play to reset and watch the learning occur
 - press `N` during play to temporarily add noise to the AI actions (avoid local optima)
+- press `F` during play to alternate between regular or ultra fast speed (speed up learning)
 
 ### In Code
 
