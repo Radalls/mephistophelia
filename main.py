@@ -13,9 +13,14 @@ def main():
     learning_mode   = AGENT_LEARNING_MODES[1]
     learning_rate   = 1
     discount_factor = 0.9
+    agent_framerate = 60
 
     env = Environment()
-    env.setup(player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor)
+    env.setup(
+        player_path, map_path, save_path,
+        play_mode, view_mode, learning_mode,
+        learning_rate, discount_factor, agent_framerate,
+    )
     arcade.run()
 
     if env.is_agent_play():

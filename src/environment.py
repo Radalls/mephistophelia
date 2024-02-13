@@ -154,7 +154,7 @@ class Environment(arcade.Window):
             anchor_y="top",
         )
 
-    def setup(self, player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor):
+    def setup(self, player_path, map_path, save_path, play_mode, view_mode, learning_mode, learning_rate, discount_factor, agent_framerate):
         # Set mode
         self.play_mode = play_mode
         self.view_mode = view_mode
@@ -251,6 +251,8 @@ class Environment(arcade.Window):
             self.agent.state = self.update_agent_state()
             if self.agent.is_learning_radar():
                 self.agent.add_state(self.agent.state)
+
+            self.set_update_rate(1 / agent_framerate)
 
     def on_draw(self):
         self.clear()
